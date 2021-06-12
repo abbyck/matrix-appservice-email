@@ -15,5 +15,15 @@
   "bugs": {
     "url": "https://github.com/abbyck/matrix-appservice-email/issues"
   },
-  "homepage": "https://github.com/abbyck/matrix-appservice-email#readme"
+  "homepage": "https://github.com/abbyck/matrix-appservice-email#readme",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "email-addresses": "^4.0.0",
+    "mailparser": "^3.2.0",
+    "matrix-appservice-bridge": "^2.6.1",
+    "smtp-server": "^3.9.0"
+  },
+  "devDependencies": {
+    "eslint": "^7.28.0"
+  }
 }

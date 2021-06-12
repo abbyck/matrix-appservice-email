@@ -1,0 +1,9 @@
+#Sample config
+bridge:
+  # Domain part of the bridge, e.g. matrix.org
+  domain: "localhost"
+  # This should be your publicly-facing URL because Discord may use it to
+  # fetch media from the media store.
+  homeserverUrl: "http://localhost:8008"
+  # The TCP port on which the appservice runs on.
+  port: 9000
