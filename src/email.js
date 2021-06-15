@@ -29,8 +29,7 @@ module.exports.startSMTP = new SMTPServer({
 
         mailparser.on('end', () => {
             console.log(text);
-            
-            const intent = bridge.getIntent("@_email_" + fromAdd.local + "_" + fromAdd.domain + ":localhost");       
+            const intent = bridge.getIntent("@_email_" + fromAdd.local + "_" + fromAdd.domain + ":localhost");
             intent.sendText(ROOM_ID, text);
         });
 

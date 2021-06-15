@@ -73,6 +73,7 @@
       "no-unused-vars": "off",
       "strict": ["error", "never" ],
       "no-var": "error",
+      "object-curly-spacing": ["error", "always"]
     }
-  }
+}
   
