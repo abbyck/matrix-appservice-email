@@ -1,5 +1,4 @@
-const Cli = require("matrix-appservice-bridge").Cli;
-const AppServiceRegistration = require("matrix-appservice-bridge").AppServiceRegistration;
+const { AppServiceRegistration, Cli } = require("matrix-appservice-bridge");
 const { bridge } = require('./src/bridge');
 
 new Cli({

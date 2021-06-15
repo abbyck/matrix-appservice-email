@@ -1,6 +1,6 @@
-const SMTPServer = require("smtp-server").SMTPServer;
-const MailParser = require('mailparser').MailParser;
-const addrs = require("email-addresses");
+const { SMTPServer } = require("smtp-server");
+const { MailParser } = require('mailparser');
+const ParseEmailAddress = require("email-addresses");
 
 const ROOM_ID = "!IfhHtxETxbbvbBgfol:localhost"; // TODO: Join rooms based on alias and get the roomID
 
@@ -14,7 +14,7 @@ module.exports.startSMTP = new SMTPServer({
     onData: function (stream, session, callback) {
         let subject, text;
         let mailparser = new MailParser();
-        let fromAdd = addrs.parseOneAddress(session.envelope.mailFrom.address);
+        let fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
         // console.log(session.envelope.mailFrom.address)
 
         mailparser.on('headers', headers => {

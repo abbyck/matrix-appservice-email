@@ -1,5 +1,5 @@
-const Bridge = require('matrix-appservice-bridge').Bridge;
-const {startSMTP}= require('./email');
+const { Bridge } = require('matrix-appservice-bridge');
+const { startSMTP }= require('./email');
 
 module.exports.bridge = function(port, config) {
     bridge = new Bridge({
