@@ -13,8 +13,8 @@ module.exports.startSMTP = new SMTPServer({
 
     onData: function (stream, session, callback) {
         let subject, text;
-        let mailparser = new MailParser();
-        let fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
+        const mailparser = new MailParser();
+        const fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
         // console.log(session.envelope.mailFrom.address)
 
         mailparser.on('headers', headers => {
@@ -37,4 +37,3 @@ module.exports.startSMTP = new SMTPServer({
         stream.on('end', callback);
     }
 });
-
