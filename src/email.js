@@ -28,6 +28,10 @@ module.exports.startSMTP = new SMTPServer({
         });
 
         mailparser.on('end', () => {
+            if (!text.replace(/\s/g, '').length) {
+                // string only contains whitespace (ie. spaces, tabs or line breaks)
+                return;
+            }
             console.log(text);
             const intent = bridge.getIntent("@_email_" + fromAdd.local + "_" + fromAdd.domain + ":localhost");
             intent.sendText(ROOM_ID, text);
