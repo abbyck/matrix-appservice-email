@@ -1,7 +1,10 @@
 const { Bridge } = require('matrix-appservice-bridge');
-const { startSMTP }= require('./email');
+const { startSMTP } = require('./email');
+const { Logging } = require('./log');
 
-module.exports.bridge = function(port, config) {
+const log = Logging.get("bridge");
+
+exports.bridge = function(port, config) {
     bridge = new Bridge({
         homeserverUrl: "http://localhost:8008",
         domain: "localhost",
@@ -19,11 +22,11 @@ module.exports.bridge = function(port, config) {
                 if (event.type !== "m.room.message" || !event.content) {
                     return;
                 }
-                console.log(`${event.sender}: ${event.content.body}`)
+                log.info(`Matrix-side: ${event.sender}: ${event.content.body}`)
             }
         }
     });
-    console.log("Matrix-side listening on port %s", port);
+    log.info("Matrix-side listening on port:", port);
     startSMTP.listen(2525);
     bridge.run(port, config);
 }

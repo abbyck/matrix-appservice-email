@@ -1,11 +1,15 @@
 const { SMTPServer } = require("smtp-server");
 const { MailParser } = require('mailparser');
 const ParseEmailAddress = require("email-addresses");
+const { Logging } = require('../log');
+
+const log = Logging.get("email");
 
 const ROOM_ID = "!IfhHtxETxbbvbBgfol:localhost"; // TODO: Join rooms based on alias and get the roomID
 
 
-module.exports.startSMTP = new SMTPServer({
+
+exports.startSMTP = new SMTPServer({
     secure: false,
     logger: false,
     disabledCommands: ['AUTH', 'STARTTLS'],
@@ -15,6 +19,7 @@ module.exports.startSMTP = new SMTPServer({
         let subject, text;
         const mailparser = new MailParser();
         const fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
+        console.log(session.envelope.rcptTo.address)
 
         mailparser.on('headers', headers => {
             subject = headers.get('subject');
@@ -27,18 +32,19 @@ module.exports.startSMTP = new SMTPServer({
         });
 
         mailparser.on('end', () => {
-            if (!text.replace(/\s/g, '').length) {
+            if (!text.trim().length) {
                 // text only contains whitespace (ie. spaces, tabs or line breaks)
+                log.warn("Inbound email contains whitespace only");
                 return;
             }
-            console.log(text);
+            log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
             // The complete event MUST NOT be larger than 65535 bytes.
             // Using 63k as the maximum text size.
             let message = Buffer.from(text, "utf-8");
             const intent = bridge.getIntent("@_email_" + fromAdd.local + "_" + fromAdd.domain + ":localhost");
             if (message.byteLength > 63000) {
                 // split text to under 63k and send as seperate events.
-                console.log("Mail contents greater than 63k")
+                log.info("Mail contents greater than 63k")
                 for (let i = 0; i<message.byteLength; i = i + 63000) {
                     intent.sendText(ROOM_ID, message.toString("utf-8", i, i + 62999));
                 }

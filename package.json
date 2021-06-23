@@ -23,10 +23,9 @@
     "install": "^0.13.0",
     "mailparser": "^3.2.0",
     "matrix-appservice-bridge": "^2.6.1",
-    "npm": "^7.18.1",
     "smtp-server": "^3.9.0",
     "winston": "^3.3.3",
-    "winston-daily-rotate-file": "^4.5.5"
+    "winston-daily-rotate-file": "^2.0.0-rc.6"
   },
   "devDependencies": {
     "eslint": "^7.28.0"
