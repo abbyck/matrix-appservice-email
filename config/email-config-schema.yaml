@@ -1,0 +1,17 @@
+type: "object"
+required: ["bridge"]
+properties:
+    bridge:
+        type: "object"
+        required: ["domain", "homeserverUrl", "mxDomain", "mailPort"]
+        properties:
+          domain:
+            type: "string"
+          homeserverUrl:
+            type: "string"
+          mxDomain:
+            type: "string"
+          mailPort:
+            type: "number"
+          port:
+            type: "number"

@@ -6,8 +6,8 @@ const log = Logging.get("bridge");
 
 exports.bridge = function(port, config) {
     bridge = new Bridge({
-        homeserverUrl: "http://localhost:8008",
-        domain: "localhost",
+        homeserverUrl: config.bridge.homeserverUrl,
+        domain: config.bridge.domain,
         registration: "email-registration.yaml",
 
         controller: {
@@ -27,6 +27,6 @@ exports.bridge = function(port, config) {
         }
     });
     log.info("Matrix-side listening on port:", port);
-    startSMTP.listen(2525);
+    startSMTP(config)
     bridge.run(port, config);
 }

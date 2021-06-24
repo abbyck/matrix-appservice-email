@@ -12,5 +12,8 @@ new Cli({
         reg.addRegexPattern("users", "@_email_.*", true);
         callback(reg);
     },
+    bridgeConfig: {
+        schema: "config/email-config-schema.yaml"
+    },
     run: bridge
 }).run();
