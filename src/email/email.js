@@ -3,10 +3,46 @@ const { MailParser } = require('mailparser');
 const ParseEmailAddress = require("email-addresses");
 const { Logging } = require('../log');
 
-
 const log = Logging.get("email");
 
-const ROOM_ID = "!IfhHtxETxbbvbBgfol:localhost"; // TODO: Join rooms based on alias and get the roomID
+const roomAlias = function(rcptTo, mxDomain) {
+    let localpartRcptTo;
+    for (let i = 0; i < rcptTo.length; i++) {
+        localpartRcptTo = ParseEmailAddress.parseOneAddress(rcptTo[i].address).local;
+        if ( localpartRcptTo.endsWith(mxDomain)) {
+            log.info("Message destination address:", localpartRcptTo);
+            break;
+        }
+    }
+    return getUserIdorAlias(localpartRcptTo);
+};
+const splitAt = index => x => [x.slice(0, index), x.slice(index+1)];
+
+const getUserIdorAlias = function(localPart) {
+
+    // Received room+<roomalias>_hs
+    if (localPart.startsWith('room+')) {
+        log.info("Message destination is a room");
+        let alias = localPart.substring(localPart.indexOf('+')+1);
+        if (alias.lastIndexOf('_') >= 1) {
+            return splitAt(alias.lastIndexOf('_'))(alias).unshift("room");
+        }
+      return null;
+    }
+
+    // Received user+<username>_<hs>
+    else if (localPart.startsWith('user+')) {
+        log.info("Message destination is a user");
+        let uname = localPart.substring(localPart.indexOf('+')+1);
+        if (uname.lastIndexOf('_') >= 1) {
+            return splitAt(uname.lastIndexOf('_'))(uname).unshift("user");
+        }
+      return null;
+    }
+
+    log.warn("Destination is not valid");
+    return null;
+};
 
 exports.startSMTP = function (config) {
     const SMTP = new SMTPServer({
@@ -19,8 +55,18 @@ exports.startSMTP = function (config) {
             let subject, text;
             const mailparser = new MailParser();
             const fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
-
-
+            let receivedAddress = roomAlias(session.envelope.rcptTo, config.bridge.domain);
+            const alias = "";
+            if (!receivedAddress) {
+                return;
+            }
+            else if (receivedAddress[0] === "room") {
+                alias = `#${receivedAddress[1]}:${receivedAddress[2]}`;
+            }
+            else if (receivedAddress[0] === "user") {
+                // TODO: send message to user
+                return;
+            }
             mailparser.on('headers', headers => {
                 subject = headers.get('subject');
             });
@@ -38,16 +84,18 @@ exports.startSMTP = function (config) {
                     return;
                 }
                 log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
-                log.info("here the configs", config);
+
                 // The complete event MUST NOT be larger than 65535 bytes.
                 // Using 63k as the maximum text size.
                 let message = Buffer.from(text, "utf-8");
+
                 const intent = bridge.getIntent(`@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`);
+
                 if (message.byteLength > 63000) {
                     // split text to under 63k and send as seperate events.
-                    log.info("Mail contents greater than 63k")
+                    log.info("Mail contents greater than 63k");
                     for (let i = 0; i<message.byteLength; i = i + 63000) {
-                        intent.sendText(ROOM_ID, message.toString("utf-8", i, i + 62999));
+                        intent.sendText(intent.resolveRoom(alias), message.toString("utf-8", i, i + 62999));
                     }
                 }
                 else {
@@ -62,3 +110,4 @@ exports.startSMTP = function (config) {
     });
     SMTP.listen(config.bridge.mailPort);
 };
+

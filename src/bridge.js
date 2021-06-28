@@ -18,15 +18,15 @@ exports.bridge = function(port, config) {
             onEvent: function(request, context) {
                 // events from matrix
                 const event = request.getData();
-                console.log(event)
+                log.info(event);
                 if (event.type !== "m.room.message" || !event.content) {
                     return;
                 }
-                log.info(`Matrix-side: ${event.sender}: ${event.content.body}`)
+                log.info(`Matrix-side: ${event.sender}: ${event.content.body}`);
             }
         }
     });
     log.info("Matrix-side listening on port:", port);
-    startSMTP(config)
+    startSMTP(config);
     bridge.run(port, config);
-}
+};
