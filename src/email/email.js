@@ -25,7 +25,9 @@ const getUserIdorAlias = function(localPart) {
         log.info("Message destination is a room");
         let alias = localPart.substring(localPart.indexOf('+')+1);
         if (alias.lastIndexOf('_') >= 1) {
-            return splitAt(alias.lastIndexOf('_'))(alias).unshift("room");
+            let res = splitAt(alias.lastIndexOf('_'))(alias);
+            res.unshift("room");
+            return res;
         }
       return null;
     }
@@ -56,7 +58,7 @@ exports.startSMTP = function (config) {
             const mailparser = new MailParser();
             const fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
             let receivedAddress = roomAlias(session.envelope.rcptTo, config.bridge.domain);
-            const alias = "";
+            let alias = "";
             if (!receivedAddress) {
                 return;
             }
@@ -100,7 +102,12 @@ exports.startSMTP = function (config) {
                 }
                 else {
                     // send message as a single event.
-                    intent.sendText(ROOM_ID, text);
+                    log.info("room id", intent.resolveRoom("#test:localhost"));
+                    intent.resolveRoom(alias).then( roomId => {
+                        intent.sendText(roomId, text);
+                    }).catch((error) => {
+                        log.error(error);
+                    });
                 }
             });
 
