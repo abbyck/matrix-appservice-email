@@ -15,3 +15,7 @@ npm-debug.log
 
 # AS registration config
 email-registration.yaml
+
+#editor configs
+.vscode
+.idea

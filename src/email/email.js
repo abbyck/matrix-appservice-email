@@ -14,11 +14,12 @@ const roomAlias = function(rcptTo, mxDomain) {
             break;
         }
     }
-    return getUserIdorAlias(localpartRcptTo);
+    return getUserIdOrAlias(localpartRcptTo);
 };
+
 const splitAt = index => x => [x.slice(0, index), x.slice(index+1)];
 
-const getUserIdorAlias = function(localPart) {
+const getUserIdOrAlias = function(localPart) {
 
     // Received room+<roomalias>_hs
     if (localPart.startsWith('room+')) {
@@ -29,7 +30,7 @@ const getUserIdorAlias = function(localPart) {
             res.unshift("room");
             return res;
         }
-      return null;
+        return null;
     }
 
     // Received user+<username>_<hs>
@@ -39,7 +40,7 @@ const getUserIdorAlias = function(localPart) {
         if (uname.lastIndexOf('_') >= 1) {
             return splitAt(uname.lastIndexOf('_'))(uname).unshift("user");
         }
-      return null;
+        return null;
     }
 
     log.warn("Destination is not valid");
@@ -102,7 +103,6 @@ exports.startSMTP = function (config) {
                 }
                 else {
                     // send message as a single event.
-                    log.info("room id", intent.resolveRoom("#test:localhost"));
                     intent.resolveRoom(alias).then( roomId => {
                         intent.sendText(roomId, text);
                     }).catch((error) => {
