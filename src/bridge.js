@@ -18,11 +18,13 @@ exports.bridge = function(port, config) {
             onEvent: function(request, context) {
                 // events from matrix
                 const event = request.getData();
-                log.info(event);
+                log.debug("Incoming event:", event);
                 if (event.type !== "m.room.message" || !event.content) {
                     return;
                 }
-                log.info(`Matrix-side: ${event.sender}: ${event.content.body}`);
+                log.info(`Matrix-side: ${event.sender}: ${event.content.body}
+                RoomID: ${event.room_id}, EventID: ${event.event_id} 
+                `);
             }
         }
     });

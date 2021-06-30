@@ -5,11 +5,15 @@ const { Logging } = require('../log');
 
 const log = Logging.get("email");
 
+// The complete event MUST NOT be larger than 65535 bytes.
+// Using 63k as the maximum text size.
+const MAX_MATRIX_MESSAGE_SIZE = 63000;
+
 const roomAlias = function(rcptTo, mxDomain) {
     let localpartRcptTo;
     for (let i = 0; i < rcptTo.length; i++) {
         localpartRcptTo = ParseEmailAddress.parseOneAddress(rcptTo[i].address).local;
-        if ( localpartRcptTo.endsWith(mxDomain)) {
+        if (localpartRcptTo.endsWith(mxDomain)) {
             log.info("Message destination address:", localpartRcptTo);
             break;
         }
@@ -61,6 +65,7 @@ exports.startSMTP = function (config) {
             let receivedAddress = roomAlias(session.envelope.rcptTo, config.bridge.domain);
             let alias = "";
             if (!receivedAddress) {
+                log.error("No destination room alias received");
                 return;
             }
             else if (receivedAddress[0] === "room") {
@@ -88,21 +93,18 @@ exports.startSMTP = function (config) {
                 }
                 log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
 
-                // The complete event MUST NOT be larger than 65535 bytes.
-                // Using 63k as the maximum text size.
                 let message = Buffer.from(text, "utf-8");
 
                 const intent = bridge.getIntent(`@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`);
 
-                if (message.byteLength > 63000) {
-                    // split text to under 63k and send as seperate events.
+                if (message.byteLength > MAX_MATRIX_MESSAGE_SIZE) {
+                    // split text to under `MAX_MATRIX_MESSAGE_SIZE` and send as separate events.
                     log.info("Mail contents greater than 63k");
-                    for (let i = 0; i<message.byteLength; i = i + 63000) {
+                    for (let i = 0; i<message.byteLength; i = i + MAX_MATRIX_MESSAGE_SIZE) {
                         intent.sendText(intent.resolveRoom(alias), message.toString("utf-8", i, i + 62999));
                     }
                 }
                 else {
-                    // send message as a single event.
                     intent.resolveRoom(alias).then( roomId => {
                         intent.sendText(roomId, text);
                     }).catch((error) => {
