@@ -14,7 +14,7 @@ const MAX_MATRIX_MESSAGE_SIZE = 63000;
  * Returns an array containing Room Alias and HomeServer.
  * @param {string} rcptTo   The `To address` from the received email.
  * @param {string} mxDomain The domain name in which the SMTP server is listening.
- * @returns {[string, string]} An array containing the alias or userID and homeserver.
+ * @returns {Error|[string, string]} An array containing the alias or userID and homeserver.
  */
 const getRoomAliasFromEmailTo = function(rcptTo, mxDomain) {
     let localPartRcptTo;
@@ -25,7 +25,7 @@ const getRoomAliasFromEmailTo = function(rcptTo, mxDomain) {
             return getUserIdOrAlias(localPartRcptTo);
         }
     }
-    throw Error("Could not determine alias from address");
+    return new Error("Could not determine alias from address");
 };
 
 
@@ -40,7 +40,7 @@ const splitAt = index => x => [x.slice(0, index), x.slice(index+1)];
 /***
  * Get userID or Room alias based on the localPart of the email address.
  * @param   {string}    localPart
- * @returns {null|[string, string]}
+ * @returns {Error|[string, string]}
  */
 const getUserIdOrAlias = function(localPart) {
     // Received room+<roomalias>_hs
@@ -52,23 +52,18 @@ const getUserIdOrAlias = function(localPart) {
             res.unshift("room");
             return res;
         }
-        return null;
     }
-
     // Received user+<username>_<hs>
     else if (localPart.startsWith('user+')) {
         log.info("Message destination is a user");
         let uname = localPart.substring(localPart.indexOf('+')+1);
-        if (alias.lastIndexOf('_') >= 1) {
-            let res = splitAt(alias.lastIndexOf('_'))(alias);
+        if (uname.lastIndexOf('_') >= 1) {
+            let res = splitAt(uname.lastIndexOf('_'))(uname);
             res.unshift("user");
             return res;
         }
-        return null;
     }
-
-    log.warn("Destination is not valid");
-    return null;
+    return new Error("Can not resolve UserID or Alias from the received localPart");
 };
 
 /***
@@ -104,7 +99,7 @@ async function handleMail(text, fromAdd, alias, config) {
                 await intent.sendText(roomID, message.toString("utf-8", i, i + 62999));
             }
             catch (err) {
-                throw Error(err);
+                throw Error(`Could not send the text to the room: ${err}`);
             }
         }
     }
@@ -113,7 +108,7 @@ async function handleMail(text, fromAdd, alias, config) {
             await intent.sendText(roomID, text);
         }
         catch (err) {
-            throw Error(err);
+            throw Error(`Could not send the text to the room: ${err}`);
         }
     }
 }
@@ -131,8 +126,8 @@ exports.startSMTP = function (config) {
             const fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
             let receivedAddress = getRoomAliasFromEmailTo(session.envelope.rcptTo, config.bridge.domain);
             let alias = "";
-            if (!receivedAddress) {
-                log.error("No destination room alias received");
+            if (receivedAddress instanceof Error) {
+                log.error(`Error resolving room address: ${receivedAddress}`);
                 return;
             }
             else if (receivedAddress[0] === "room") {
