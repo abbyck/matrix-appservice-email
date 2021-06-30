@@ -9,22 +9,40 @@ const log = Logging.get("email");
 // Using 63k as the maximum text size.
 const MAX_MATRIX_MESSAGE_SIZE = 63000;
 
-const roomAlias = function(rcptTo, mxDomain) {
-    let localpartRcptTo;
+
+/***
+ * Returns an array containing Room Alias and HomeServer.
+ * @param {string} rcptTo   The `To address` from the received email.
+ * @param {string} mxDomain The domain name in which the SMTP server is listening.
+ * @returns {[string, string]} An array containing the alias or userID and homeserver.
+ */
+const getRoomAliasFromEmailTo = function(rcptTo, mxDomain) {
+    let localPartRcptTo;
     for (let i = 0; i < rcptTo.length; i++) {
-        localpartRcptTo = ParseEmailAddress.parseOneAddress(rcptTo[i].address).local;
-        if (localpartRcptTo.endsWith(mxDomain)) {
-            log.info("Message destination address:", localpartRcptTo);
-            break;
+        localPartRcptTo = ParseEmailAddress.parseOneAddress(rcptTo[i].address).local;
+        if (localPartRcptTo.endsWith(mxDomain)) {
+            log.info("Message destination address:", localPartRcptTo);
+            return getUserIdOrAlias(localPartRcptTo);
         }
     }
-    return getUserIdOrAlias(localpartRcptTo);
+    throw Error("Could not determine alias from address");
 };
 
+
+/***
+ * Split a string at given index into an array containing the two parts.
+ * @param index string index at which the string has to be split.
+ * @returns {function(string): [string, string]}
+ */
 const splitAt = index => x => [x.slice(0, index), x.slice(index+1)];
 
-const getUserIdOrAlias = function(localPart) {
 
+/***
+ * Get userID or Room alias based on the localPart of the email address.
+ * @param   {string}    localPart
+ * @returns {null|[string, string]}
+ */
+const getUserIdOrAlias = function(localPart) {
     // Received room+<roomalias>_hs
     if (localPart.startsWith('room+')) {
         log.info("Message destination is a room");
@@ -41,8 +59,10 @@ const getUserIdOrAlias = function(localPart) {
     else if (localPart.startsWith('user+')) {
         log.info("Message destination is a user");
         let uname = localPart.substring(localPart.indexOf('+')+1);
-        if (uname.lastIndexOf('_') >= 1) {
-            return splitAt(uname.lastIndexOf('_'))(uname).unshift("user");
+        if (alias.lastIndexOf('_') >= 1) {
+            let res = splitAt(alias.lastIndexOf('_'))(alias);
+            res.unshift("user");
+            return res;
         }
         return null;
     }
@@ -50,6 +70,53 @@ const getUserIdOrAlias = function(localPart) {
     log.warn("Destination is not valid");
     return null;
 };
+
+/***
+ * Send the inbound mail's contents to the corresponding rooms.
+ * @param {string}  text    The text content of the email.
+ * @param {ParsedMailbox}  fromAdd Email address of the sender.
+ * @param {string}  alias   Destination room alias.
+ * @param {object}  config  Bridge configurations.
+ * @returns {Promise<void>}
+ */
+async function handleMail(text, fromAdd, alias, config) {
+    if (!text.trim().length) {
+        // text only contains whitespace (ie. spaces, tabs or line breaks)
+        log.warn("Inbound email contains whitespace only");
+        return;
+    }
+
+    log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
+
+    const intent = bridge.getIntent(`@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`);
+    let message = Buffer.from(text, "utf-8");
+    let roomID = await intent.resolveRoom(alias);
+
+    if (!roomID.startsWith("!")) {
+        throw Error("Could not resolve roomID from given alias");
+    }
+
+    if (message.byteLength > MAX_MATRIX_MESSAGE_SIZE) {
+        // split text to under `MAX_MATRIX_MESSAGE_SIZE` and send as separate events.
+        log.info("Mail contents greater than 63k");
+        for (let i = 0; i<message.byteLength; i = i + MAX_MATRIX_MESSAGE_SIZE) {
+            try {
+                await intent.sendText(roomID, message.toString("utf-8", i, i + 62999));
+            }
+            catch (err) {
+                throw Error(err);
+            }
+        }
+    }
+    else {
+        try {
+            await intent.sendText(roomID, text);
+        }
+        catch (err) {
+            throw Error(err);
+        }
+    }
+}
 
 exports.startSMTP = function (config) {
     const SMTP = new SMTPServer({
@@ -62,7 +129,7 @@ exports.startSMTP = function (config) {
             let subject, text;
             const mailparser = new MailParser();
             const fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
-            let receivedAddress = roomAlias(session.envelope.rcptTo, config.bridge.domain);
+            let receivedAddress = getRoomAliasFromEmailTo(session.envelope.rcptTo, config.bridge.domain);
             let alias = "";
             if (!receivedAddress) {
                 log.error("No destination room alias received");
@@ -77,6 +144,8 @@ exports.startSMTP = function (config) {
             }
             mailparser.on('headers', headers => {
                 subject = headers.get('subject');
+                log.info("Email contents from", fromAdd.address, "will be sent to",
+                    `${receivedAddress[1]}:${receivedAddress[2]}`);
             });
 
             mailparser.on('data', data => {
@@ -86,31 +155,9 @@ exports.startSMTP = function (config) {
             });
 
             mailparser.on('end', () => {
-                if (!text.trim().length) {
-                    // text only contains whitespace (ie. spaces, tabs or line breaks)
-                    log.warn("Inbound email contains whitespace only");
-                    return;
-                }
-                log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
-
-                let message = Buffer.from(text, "utf-8");
-
-                const intent = bridge.getIntent(`@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`);
-
-                if (message.byteLength > MAX_MATRIX_MESSAGE_SIZE) {
-                    // split text to under `MAX_MATRIX_MESSAGE_SIZE` and send as separate events.
-                    log.info("Mail contents greater than 63k");
-                    for (let i = 0; i<message.byteLength; i = i + MAX_MATRIX_MESSAGE_SIZE) {
-                        intent.sendText(intent.resolveRoom(alias), message.toString("utf-8", i, i + 62999));
-                    }
-                }
-                else {
-                    intent.resolveRoom(alias).then( roomId => {
-                        intent.sendText(roomId, text);
-                    }).catch((error) => {
-                        log.error(error);
-                    });
-                }
+                handleMail(text, fromAdd, alias, config)
+                    .then(() => log.info("message sent to the room"))
+                    .catch((err) => log.error(`Could not handle mail:`, err));
             });
 
             stream.pipe(mailparser);
