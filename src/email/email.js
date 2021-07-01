@@ -30,7 +30,7 @@ const getRoomAliasFromEmailTo = function(rcptTo, mxDomain) {
             return getUserIdOrAlias(localPartRcptTo);
         }
     }
-    return new Error("Could not determine alias from address");
+    throw Error("To address does not contain a valid recipient");
 };
 
 
@@ -68,7 +68,7 @@ const getUserIdOrAlias = function(localPart) {
             return res;
         }
     }
-    return new Error("Can not resolve UserID or Alias from the received localPart");
+    throw Error("Could not resolve UserID or Alias from the received localPart");
 };
 
 
@@ -133,16 +133,17 @@ exports.startSMTP = function (config) {
             const fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
             let receivedAddress = getRoomAliasFromEmailTo(session.envelope.rcptTo, config.bridge.domain);
             let alias = "";
-            if (receivedAddress instanceof Error) {
-                log.error(`Error resolving room address: ${receivedAddress}`);
-                return;
+            try {
+                if (receivedAddress[0] === "room") {
+                    alias = `#${receivedAddress[1]}:${receivedAddress[2]}`;
+                }
+                else if (receivedAddress[0] === "user") {
+                    // TODO: send message to user
+                    return;
+                }
             }
-            else if (receivedAddress[0] === "room") {
-                alias = `#${receivedAddress[1]}:${receivedAddress[2]}`;
-            }
-            else if (receivedAddress[0] === "user") {
-                // TODO: send message to user
-                return;
+            catch (err) {
+                log.error(`Error resolving room address: ${err.message}`);
             }
             mailparser.on('headers', headers => {
                 subject = headers.get('subject');
