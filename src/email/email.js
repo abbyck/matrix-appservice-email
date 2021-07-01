@@ -5,8 +5,13 @@ const { Logging } = require('../log');
 
 const log = Logging.get("email");
 
-// The complete event MUST NOT be larger than 65535 bytes.
-// Using 63k as the maximum text size.
+
+/***
+ * The complete event MUST NOT be larger than 65535 bytes.
+ * https://spec.matrix.org/unstable/client-server-api/#size-limits
+ * Using 63k as the maximum text size.
+ * @type {number}
+ */
 const MAX_MATRIX_MESSAGE_SIZE = 63000;
 
 
@@ -66,6 +71,7 @@ const getUserIdOrAlias = function(localPart) {
     return new Error("Can not resolve UserID or Alias from the received localPart");
 };
 
+
 /***
  * Send the inbound mail's contents to the corresponding rooms.
  * @param {string}  text    The text content of the email.
@@ -113,6 +119,7 @@ async function handleMail(text, fromAdd, alias, config) {
     }
 }
 
+
 exports.startSMTP = function (config) {
     const SMTP = new SMTPServer({
         secure: false,
@@ -151,7 +158,7 @@ exports.startSMTP = function (config) {
 
             mailparser.on('end', () => {
                 handleMail(text, fromAdd, alias, config)
-                    .then(() => log.info("message sent to the room"))
+                    .then(() => log.info("Message sent to the room"))
                     .catch((err) => log.error(`Could not handle mail:`, err));
             });
 
