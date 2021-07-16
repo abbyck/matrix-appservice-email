@@ -15,3 +15,9 @@ properties:
             type: "number"
           port:
             type: "number"
+          outboundPort:
+            type: "number"
+          dkimPrivateKeyLocation:
+            type: "string"
+          dkimSelector:
+            type: "string"

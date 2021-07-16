@@ -5,10 +5,16 @@ bridge:
   domain: "localhost"
   # HomeServer URL
   homeserverUrl: "http://localhost:8008"
-  # MX inbound domain. 
+  # MX inbound domain.
   # This is the domain to which inbound mails are sent by email users
   mxDomain: "localhost"
   # Mail submission port (587 is recommended)
   mailPort: 2525
   # The TCP port on which the appservice runs on.
   port: 8090
+  # SMTP outbound port number.
+  outboundPort: 25
+  # DKIM private key file location(eg: './dkim-private.pem'). Empty string for no DKIM signing
+  dkimPrivateKeyLocation: ''
+  # DKIM selector name. Leave empty for no DKIM
+  dkimSelector: ''
