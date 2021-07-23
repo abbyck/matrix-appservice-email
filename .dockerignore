@@ -1,0 +1,23 @@
+config/config-sample.yaml
+
+# Dependency directories
+node_modules/
+
+# Optional npm cache directory
+.npm
+
+# npm debug logs
+npm-debug.log
+
+# dotenv environment variables file
+.env
+
+# db files
+*.db
+
+# AS registration config
+email-registration.yaml
+
+#editor configs
+.vscode
+.idea
