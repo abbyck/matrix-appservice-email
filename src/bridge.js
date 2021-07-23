@@ -11,8 +11,8 @@ const sendMail = require('./email/outbound')({
     // },
     devPort: 2500,
     devHost: 'localhost',
-    smtpPort: 25,
-    smtpHost: -1
+    smtpPort: 2500,
+    smtpHost: 'localhost'
 });
 
 const log = Logging.get("bridge");
@@ -37,17 +37,19 @@ exports.bridge = async function(port, config, registration) {
                 log.info(`Matrix-side: ${event.sender}: ${event.content.body}
                 RoomID: ${event.room_id}, EventID: ${event.event_id} 
                 `);
-                log.info('sending mail');
                 sendMail({
                     from: 'room+email_localhost@matrix.org',
                     to: 'user@localhost',
                     subject: `You have a message from ${event.sender}`,
                     html: `${event.content.body}`,
                 }, function(err, reply) {
-                    console.log(err && err.stack);
-                    console.dir(reply);
+                    if (!err) {
+                        log.info('mail sent');
+                    }
+                    log.error(err && err.stack);
+                    log.info('reply', reply);
                 });
-                log.info('mail sent');
+
             }
         }
     });

@@ -1,14 +1,12 @@
 const { createConnection } = require('net');
 const { resolveMx } = require('dns');
-
 const { DKIMSign } = require('dkim-signer');
 const MailComposer = require("nodemailer/lib/mail-composer");
 const ParseEmailAddress = require("email-addresses");
 const { Logging } = require('../log');
 
-const CRLF = '\r\n';
-
 const log = Logging.get("outbound");
+const CRLF = '\r\n';
 
 module.exports = function (options) {
     options = options || {};
@@ -20,14 +18,11 @@ module.exports = function (options) {
     const smtpPort = options.smtpPort || 25;
     const smtpHost = options.smtpHost || -1;
 
-
     function groupRecipients(recipients) {
-        let groups = {};
-        let host;
-        const recipientsLength = recipients.length;
-        for (let i = 0; i < recipientsLength; i++) {
-            host = ParseEmailAddress.parseOneAddress(recipients[i]).domain;
-            (groups[host] || (groups[host] = [])).push(recipients[i]);
+        const groups = {};
+        for (const recipient of recipients) {
+            const host = ParseEmailAddress.parseOneAddress(recipient).domain;
+            (groups[host] || (groups[host] = [])).push(recipient);
         }
         return groups;
     }
