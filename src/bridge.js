@@ -4,11 +4,11 @@ const { Logging } = require('./log');
 
 const log = Logging.get("bridge");
 
-exports.bridge = function(port, config) {
+exports.bridge = async function(port, config, registration) {
     bridge = new Bridge({
         homeserverUrl: config.bridge.homeserverUrl,
         domain: config.bridge.domain,
-        registration: "email-registration.yaml",
+        registration,
 
         controller: {
             onUserQuery: function(queriedUser) {
