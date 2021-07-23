@@ -29,6 +29,18 @@ exports.bridge = function(port, config) {
         }
     });
     log.info("Matrix-side listening on port:", port);
+    process.on('SIGINT', async () => {
+        // Handle Ctrl-C
+        log.info(`Closing bridge due to SIGINT`);
+        try {
+            await bridge.appService.close();
+            process.exit(0);
+        }
+        catch (ex) {
+            log.error(`Ungraceful shutdown:`, ex);
+            process.exit(1);
+        }
+    });
     startSMTP(config);
     bridge.run(port, config);
 };
