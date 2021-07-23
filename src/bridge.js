@@ -17,12 +17,11 @@ const sendMail = require('./email/outbound')({
 
 const log = Logging.get("bridge");
 
-
-exports.bridge = function(port, config) {
+exports.bridge = async function(port, config, registration) {
     bridge = new Bridge({
         homeserverUrl: config.bridge.homeserverUrl,
         domain: config.bridge.domain,
-        registration: "email-registration.yaml",
+        registration,
 
         controller: {
             onUserQuery: function(queriedUser) {
@@ -52,7 +51,37 @@ exports.bridge = function(port, config) {
             }
         }
     });
-    log.info("Matrix-side listening on port:", port);
+    process.on('SIGINT', async () => {
+        // Handle Ctrl-C
+        log.info(`Closing bridge due to SIGINT`);
+        try {
+            await bridge.appService.close();
+            process.exit(0);
+        }
+        catch (ex) {
+            log.error(`Ungraceful shutdown:`, ex);
+            process.exit(1);
+        }
+    });
+
+    // Check if the homeserver is up yet.
+    let ready = false;
+    await bridge.initalise();
+    do {
+        try {
+            log.info(`Checking connection to the HS..`);
+            // Simple call.
+            await bridge.botClient.getVersions();
+            log.info(`HS connection ready`);
+            break;
+        }
+        catch (ex) {
+            log.error('Could not verify HS connection, retrying in 5s.');
+            await new Promise(res => setTimeout(res, 5000)); // Wait 5s before reattempting
+        }
+    } while (!ready);
+
     startSMTP(config);
-    bridge.run(port, config);
+    bridge.listen(port, config);
+    log.info("Matrix-side listening on port:", port);
 };
