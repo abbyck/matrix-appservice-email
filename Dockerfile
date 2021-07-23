@@ -2,11 +2,10 @@ FROM node:16-slim
 
 WORKDIR /app
 COPY . .
-RUN npm ci
+RUN npm ci --cache /tmp/empty-cache
 
-EXPOSE 587/tcp
+EXPOSE 25/tcp
 EXPOSE 8090/tcp
-
 VOLUME ["/config"]
-ENTRYPOINT [ "node", "app.js", "-c", "/config/config.yaml" ]
-CMD [ "-p", "5858", "-f", "/config/email-registration.yaml" ]
+
+ENTRYPOINT [ "node", "app.js", "-c", "/config/config.yaml",  "-f", "/config/email-registration.yaml", "-p", "8090" ]
