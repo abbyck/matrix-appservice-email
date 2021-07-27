@@ -1,23 +1,21 @@
 const { createConnection } = require('net');
-const { resolveMx } = require('dns');
+const { Resolver } = require('dns').promises;
 const { DKIMSign } = require('dkim-signer');
 const MailComposer = require("nodemailer/lib/mail-composer");
 const ParseEmailAddress = require("email-addresses");
 const { Logging } = require('../log');
-
+const resolver = new Resolver();
 const log = Logging.get("outbound");
 const CRLF = '\r\n';
 
 module.exports = function (options) {
     options = options || {};
-
     const dkimPrivateKey = (options.dkim || {}).privateKey;
     const dkimKeySelector = (options.dkim || {}).keySelector || 'dkim';
-    const devPort = options.devPort || -1;
-    const devHost = options.devHost || 'localhost';
     const smtpPort = options.smtpPort || 25;
-    const smtpHost = options.smtpHost || -1;
+    const smtpHost = options.smtpHost;
 
+    // group recipients by domain(to limit the number of connections per 'To' domain).
     function groupRecipients(recipients) {
         const groups = {};
         for (const recipient of recipients) {
@@ -27,62 +25,58 @@ module.exports = function (options) {
         return groups;
     }
 
+    function getAddresses(addresses) {
+        const results = [];
+        if (!Array.isArray(addresses)) {
+            addresses = addresses.split(',');
+        }
+        const addressesLength = addresses.length;
+        for (let i = 0; i < addressesLength; i++) {
+            results.push(ParseEmailAddress.parseOneAddress(addresses[i]).address);
+        }
+        return results;
+    }
+
     /**
      * connect to domain by MX record
      */
-    function connectMx(domain, callback) {
-        if (devPort === -1) { // not in development mode -> search the MX
-            // eslint-disable-next-line consistent-return
-            resolveMx(domain, function (err, data) {
-                if (err) {
-                    return callback(err);
-                }
-
-                data.sort(function (a, b) { return a.priority > b.priority; });
-                log.debug('MX resolved: ', data);
-
-                if (!data || data.length === 0) {
-                    return callback(new Error('can not resolve Mx of <' + domain + '>'));
-                }
-                if (smtpHost !== -1) {
-                    data.push({ exchange: smtpHost });
-                }
-                // eslint-disable-next-line consistent-return
-                function tryConnect(i) {
-                    if (i >= data.length) {
-                        return callback(new Error('can not connect to any SMTP server'));
-                    }
-
-                    const sock = createConnection(smtpPort, data[i].exchange);
-
-                    sock.on('error', function (err) {
-                        log.error('Error on connectMx for: ', data[i], err);
-                        tryConnect(++i);
-                    });
-
-                    sock.on('connect', function () {
-                        log.debug('MX connection created: ', data[i].exchange);
-                        sock.removeAllListeners('error');
-                        callback(null, sock);
-                    });
-                }
-
-                tryConnect(0);
-            });
+    async function connectMx(domain, callback) {
+        let resolvedMX = [];
+        if (smtpHost !== '' || typeof smtpHost === 'undefined') {
+            resolvedMX.push({ exchange: smtpHost });
         }
-        else { // development mode -> connect to the specified devPort on devHost
-            const sock = createConnection(devPort, devHost);
+        else {
+            try {
+                resolvedMX = await resolver.resolveMx(domain);
+                resolvedMX.sort(function (a, b) { return a.priority - b.priority; });
+                log.debug('Resolved MX list', resolvedMX);
+            }
+            catch (err) {
+                log.error(`Failed to resolve MX for ${domain}`, err);
+                return;
+            }
+        }
+        // eslint-disable-next-line consistent-return
+        function tryConnect(i) {
+            if (i >= resolvedMX.length) {
+                return callback(new Error(`Could not connect to any SMTP server for ${domain}`));
+            }
+
+            const sock = createConnection(smtpPort, resolvedMX[i].exchange);
 
             sock.on('error', function (err) {
-                callback(new Error('Error on connectMx (development) for "' + devHost + ':' + devPort + '": ' + err));
+                log.error('Error on connectMx for: ', resolvedMX[i], err);
+                tryConnect(++i);
             });
 
             sock.on('connect', function () {
-                log.info('MX (development) connection created: ' + devHost + ':' + devPort);
+                log.debug('MX connection created: ', resolvedMX[i].exchange);
                 sock.removeAllListeners('error');
                 callback(null, sock);
             });
         }
+        // try connecting from the first resolvedMX
+        tryConnect(0);
     }
 
     function sendToSMTP(domain, srcHost, from, recipients, body, cb) {
@@ -171,7 +165,7 @@ module.exports = function (options) {
                         break;
 
                     case 354:
-                        // Send message, inform end by CRLF . CRLF
+                        // Send message, inform end by <CR><LF>.<CR><LF>
                         log.info('sending mail', body);
                         w(body);
                         w('');
@@ -211,22 +205,9 @@ module.exports = function (options) {
     }
 
 
-    function getAddresses(addresses) {
-        const results = [];
-        if (!Array.isArray(addresses)) {
-            addresses = addresses.split(',');
-        }
-
-        const addressesLength = addresses.length;
-        for (let i = 0; i < addressesLength; i++) {
-            results.push(ParseEmailAddress.parseOneAddress(addresses[i]).address);
-        }
-        return results;
-    }
-
     /**
-     * sendmail directly
-     * mail obj attr reference: https://nodemailer.com/extras/mailcomposer/#e-mail-message-fields
+     * Send Mail directly
+     * `mail` object attribute reference: https://nodemailer.com/extras/mailcomposer/#e-mail-message-fields
      * @param mail {object}
      *             from
      *             to
