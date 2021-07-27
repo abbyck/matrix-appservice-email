@@ -9,8 +9,6 @@ const sendMail = require('./email/outbound')({
     //     privateKey: fs.readFileSync(config.bridge.dkimPrivateKeyLocation, 'utf8'),
     //     keySelector: config.bridge.dkimSelector,
     // },
-    devPort: 2500,
-    devHost: 'localhost',
     smtpPort: 2500,
     smtpHost: 'localhost'
 });
@@ -30,29 +28,45 @@ exports.bridge = async function(port, config, registration) {
 
             onEvent: function(request, context) {
                 // events from matrix
+                console.log(context);
                 const event = request.getData();
                 if (event.type !== "m.room.message" || !event.content) {
                     return;
                 }
-                log.info(`Matrix-side: ${event.sender}: ${event.content.body}
+                log.info(`Matrix-side: ${event.sender}: ${event}
                 RoomID: ${event.room_id}, EventID: ${event.event_id} 
                 `);
-                sendMail({
-                    from: 'room+email_localhost@matrix.org',
-                    to: 'user@localhost',
-                    subject: `You have a message from ${event.sender}`,
-                    html: `${event.content.body}`,
-                }, function(err, reply) {
-                    if (!err) {
-                        log.info('mail sent');
-                    }
-                    log.error(err && err.stack);
-                    log.info('reply', reply);
-                });
-
+                sendMessageviaEmail(event.room_id, event);
             }
         }
     });
+
+    async function sendMessageviaEmail(roomid, event) {
+        const ASBot = bridge.getBot();
+        ASBot.getJoinedMembers(roomid).then(roomMembers => {
+            // eslint-disable-next-line guard-for-in
+            for (let member in roomMembers) {
+                if (ASBot.isRemoteUser(member)) {
+                    log.info("Remote user email id", getMailIdFromUserId(member, config.bridge.domain));
+                    sendMail({
+                        from: 'room+email_localhost@matrix.org',
+                        to: 'user@localhost',
+                        subject: `You have a message from ${event.sender}`,
+                        html: `${event.content.body}`,
+                    }, function(err, reply) {
+                        if (!err) {
+                            log.info('mail sent');
+                            return;
+                        }
+                        log.error(`Could not send mail`, err);
+                    });
+                }
+            }
+        }).catch(err => {
+            return err;
+        });
+    }
+
     process.on('SIGINT', async () => {
         // Handle Ctrl-C
         log.info(`Closing bridge due to SIGINT`);
@@ -87,3 +101,10 @@ exports.bridge = async function(port, config, registration) {
     bridge.listen(port, config);
     log.info("Matrix-side listening on port:", port);
 };
+
+function getMailIdFromUserId(userId, homeServer) {
+    const email = userId.slice(8, userId.lastIndexOf(":"+ homeServer));
+    const localPart = email.slice(0, email.lastIndexOf('_'));
+    const domain = email.slice(email.lastIndexOf('_')+1);
+    return `${localPart}@${domain}`;
+}
