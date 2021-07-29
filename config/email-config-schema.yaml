@@ -17,7 +17,10 @@ properties:
             type: "number"
           outboundPort:
             type: "number"
+          smtpHost:
+            type: "string"
           dkimPrivateKeyLocation:
             type: "string"
           dkimSelector:
             type: "string"
+

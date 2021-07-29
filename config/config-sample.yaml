@@ -8,12 +8,14 @@ bridge:
   # The TCP port on which the appservice runs on.
   port: 8090
   # MX inbound domain.
-  # This is the domain to which inbound mails are sent by email users
+  # This is the domain to which inbound mails are sent by email users (eg: matrix.org)
   mxDomain: "localhost"
-  # SMTP inbound port.
+  # SMTP inbound port(Usually 25).
   mailPort: 2525
-  # SMTP outbound port.
-  outboundPort: 25
+  # SMTP outbound port(Usually 25).
+  outboundPort: 2500
+  # SMTP next hop address (If you want to relay mails through some server. Leave empty, for no relay)
+  smtpHost: 'localhost'
   # DKIM private key file location(eg: './dkim-private.pem'). Empty string for no DKIM signing
   dkimPrivateKeyLocation: ''
   # DKIM selector name. Leave empty for no DKIM

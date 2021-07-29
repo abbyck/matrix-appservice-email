@@ -3,16 +3,6 @@ const { Bridge } = require('matrix-appservice-bridge');
 const { startSMTP } = require('./email');
 const { Logging } = require('./log');
 
-const sendMail = require('./email/outbound')({
-    // dkim false for now
-    // dkim: {
-    //     privateKey: fs.readFileSync(config.bridge.dkimPrivateKeyLocation, 'utf8'),
-    //     keySelector: config.bridge.dkimSelector,
-    // },
-    smtpPort: 2500,
-    smtpHost: 'localhost'
-});
-
 const log = Logging.get("bridge");
 
 exports.bridge = async function(port, config, registration) {
@@ -28,7 +18,6 @@ exports.bridge = async function(port, config, registration) {
 
             onEvent: function(request, context) {
                 // events from matrix
-                console.log(context);
                 const event = request.getData();
                 if (event.type !== "m.room.message" || !event.content) {
                     return;
@@ -36,35 +25,63 @@ exports.bridge = async function(port, config, registration) {
                 log.info(`Matrix-side: ${event.sender}: ${event}
                 RoomID: ${event.room_id}, EventID: ${event.event_id} 
                 `);
-                sendMessageviaEmail(event.room_id, event);
+                sendMessageViaEmail(event.room_id, event);
             }
         }
     });
 
-    async function sendMessageviaEmail(roomid, event) {
+    const sendMail = require('./email/outbound')({
+        // dkim: {
+        //     privateKey: fs.readFileSync(config.bridge.dkimPrivateKeyLocation, 'utf8'),
+        //     keySelector: config.bridge.dkimSelector,
+        // },
+        smtpPort: config.bridge.outboundPort,
+        smtpHost: config.bridge.smtpHost
+    });
+
+    async function sendMessageViaEmail(roomid, event) {
+        let roomEmail, roomMembers;
         const ASBot = bridge.getBot();
-        ASBot.getJoinedMembers(roomid).then(roomMembers => {
-            // eslint-disable-next-line guard-for-in
-            for (let member in roomMembers) {
-                if (ASBot.isRemoteUser(member)) {
-                    log.info("Remote user email id", getMailIdFromUserId(member, config.bridge.domain));
-                    sendMail({
-                        from: 'room+email_localhost@matrix.org',
-                        to: 'user@localhost',
-                        subject: `You have a message from ${event.sender}`,
-                        html: `${event.content.body}`,
-                    }, function(err, reply) {
-                        if (!err) {
-                            log.info('mail sent');
-                            return;
-                        }
-                        log.error(`Could not send mail`, err);
-                    });
+        try {
+            roomMembers = await ASBot.getJoinedMembers(roomid).catch();
+        }
+        catch (ex) {
+            log.error(`Could not get room member list`, ex);
+            return;
+        }
+        for (let member in roomMembers) {
+            if (ASBot.isRemoteUser(member)) {
+                log.info("Remote email userId", member);
+                // Only query for `m.room.canonical_alias` if roomEmail is undefined.
+                if (typeof roomEmail === "undefined") {
+                    const intent = bridge.getIntent(member);
+                    let roomAlias;
+                    try {
+                        roomAlias = await intent.getStateEvent(roomid, 'm.room.canonical_alias');
+                        log.info("Room alias:", roomAlias.alias);
+                    }
+                    catch (ex) {
+                        log.error(`Could not get roomAlias`, ex);
+                        return;
+                    }
+                    roomEmail = getRoomMailIdFromRoomAlias(roomAlias.alias, config.bridge.mxDomain);
+                    log.info("Room email id:", roomEmail);
                 }
+                const emailIdOfMember = getMailIdFromUserId(member, config.bridge.domain);
+                sendMail({
+                    from: roomEmail,
+                    to: emailIdOfMember,
+                    subject: `You have a message from ${event.sender}`,
+                    html: `${event.content.body}`,
+                }, function(err, reply) {
+                    if (!err) {
+                        log.info('Mail sent to', getMailIdFromUserId(member, config.bridge.domain));
+                        return;
+                    }
+                    log.error(`Could not send mail`, err);
+                });
             }
-        }).catch(err => {
-            return err;
-        });
+        }
     }
 
     process.on('SIGINT', async () => {
@@ -102,9 +119,27 @@ exports.bridge = async function(port, config, registration) {
     log.info("Matrix-side listening on port:", port);
 };
 
+/**
+ * Returns the email address obtained from Matrix UserId
+ * @param userId        userId in the format `@_email_<localPart>_<domain.tld>:localhost`.
+ * @param homeServer    homeServer address.
+ * @returns {string}    Email-ID obtained from bridge userID `localPart@domain.tld`.
+ */
 function getMailIdFromUserId(userId, homeServer) {
     const email = userId.slice(8, userId.lastIndexOf(":"+ homeServer));
     const localPart = email.slice(0, email.lastIndexOf('_'));
     const domain = email.slice(email.lastIndexOf('_')+1);
     return `${localPart}@${domain}`;
+}
+
+/**
+ * Returns the email address for a provided roomAlias
+ * @param roomAlias     Corresponding Room alias.
+ * @param mxDomain      SMTP listening domain.
+ * @returns {string}    Email address in the format `room+<alias>_<homeserver>@matrix.org`
+ */
+function getRoomMailIdFromRoomAlias(roomAlias, mxDomain) {
+    const alias = roomAlias.slice(1, roomAlias.lastIndexOf(":"));
+    const homeServer = roomAlias.slice(roomAlias.lastIndexOf(":")+1);
+    return `room+${alias}_${homeServer}@${mxDomain}`;
 }
