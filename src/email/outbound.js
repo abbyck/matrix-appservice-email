@@ -40,14 +40,16 @@ module.exports = function (options) {
     /**
      * connect to domain by MX record
      */
-    async function connectMx(domain, callback) {
+    function connectMx(domain, callback) {
         let resolvedMX = [];
         if (smtpHost !== '' || typeof smtpHost === 'undefined') {
             resolvedMX.push({ exchange: smtpHost });
         }
         else {
             try {
-                resolvedMX = await resolver.resolveMx(domain);
+                resolver.resolveMx(domain).then(addresses => {
+                    resolvedMX = addresses;
+                });
                 resolvedMX.sort(function (a, b) { return a.priority - b.priority; });
                 log.debug('Resolved MX list', resolvedMX);
             }
