@@ -52,7 +52,7 @@ exports.bridge = async function(port, config, registration) {
         for (let member in roomMembers) {
             if (ASBot.isRemoteUser(member)) {
                 log.info("Remote email userId", member);
-                // Only query for `m.room.canonical_alias` if roomEmail is undefined.
+                // Query for `m.room.canonical_alias` only if roomEmail is undefined(first occurrence).
                 if (typeof roomEmail === "undefined") {
                     const intent = bridge.getIntent(member);
                     let roomAlias;
@@ -73,12 +73,10 @@ exports.bridge = async function(port, config, registration) {
                     to: emailIdOfMember,
                     subject: `You have a message from ${event.sender}`,
                     html: `${event.content.body}`,
-                }, function(err, reply) {
-                    if (!err) {
-                        log.info('Mail sent to', getMailIdFromUserId(member, config.bridge.domain));
-                        return;
-                    }
-                    log.error(`Could not send mail`, err);
+                }).then( _ => {
+                    log.info(`Message sent from ${roomEmail} to ${roomEmail}`);
+                }).catch(ex => {
+                    log.error(`Could not sent email from ${roomEmail} to ${roomEmail}: ${ex}`);
                 });
             }
         }
