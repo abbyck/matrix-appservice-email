@@ -76,10 +76,11 @@ const getUserIdOrAlias = function(localPart) {
  * Send the inbound mail's contents to the corresponding rooms.
  * @param {string}  text    The text content of the email.
  * @param {ParsedMailbox}  fromAdd Email address of the sender.
+ * @param {address} from    The from address object from email header.
  * @param {object}  config  Bridge configurations.
  * @returns {Promise<void>}
  */
-async function handleMail(text, toAdd, fromAdd, config) {
+async function handleMail(text, toAdd, fromAdd, from, config) {
     let alias = "", receivedAddress;
     try {
         receivedAddress = getRoomAliasFromEmailTo(toAdd, config.bridge.domain);
@@ -104,7 +105,10 @@ async function handleMail(text, toAdd, fromAdd, config) {
 
     log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
     log.info("Email contents from", fromAdd.address, "will be sent to", `${receivedAddress[1]}:${receivedAddress[2]}`);
+
     const intent = bridge.getIntent(`@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`);
+    const displayName = from.value[0].name !== "" ? `${from.value[0].name} (email)` : `${fromAdd.address} (email)`;
+    await intent.setDisplayName(displayName);
     let message = Buffer.from(text, "utf-8");
     let roomID = await intent.resolveRoom(alias);
     if (!roomID.startsWith("!")) {
@@ -142,12 +146,13 @@ exports.startSMTP = function (config) {
         authOptional: true,
 
         onData: function (stream, session, callback) {
-            let subject, text;
+            let subject, text, from;
             const mailparser = new MailParser();
             const fromAddress = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
             const toAddress = session.envelope.rcptTo;
             mailparser.on('headers', headers => {
                 subject = headers.get('subject');
+                from = headers.get('from');
             });
 
             mailparser.on('data', data => {
@@ -157,7 +162,7 @@ exports.startSMTP = function (config) {
             });
 
             mailparser.on('end', () => {
-                handleMail(text, toAddress, fromAddress, config)
+                handleMail(text, toAddress, fromAddress, from, config)
                     .then(() => log.info("Message sent to the room"))
                     .catch((err) => log.error(`Could not handle mail:`, err));
             });
