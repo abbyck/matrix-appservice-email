@@ -1,6 +1,7 @@
 const { createConnection } = require('net');
 const { Resolver } = require('dns').promises;
 const { DKIMSign } = require('dkim-signer');
+const { connect, createSecureContext } = require('tls');
 const MailComposer = require("nodemailer/lib/mail-composer");
 const ParseEmailAddress = require("email-addresses");
 
@@ -11,10 +12,14 @@ const CRLF = '\r\n';
 
 module.exports = function (options) {
     options = options || {};
+    const dkimEnabled = options.dkimEnabled || false;
     const dkimPrivateKey = (options.dkim || {}).privateKey;
     const dkimKeySelector = (options.dkim || {}).keySelector || 'dkim';
     const smtpPort = options.smtpPort || 25;
     const smtpHost = options.smtpHost;
+    const rejectUnauthorized = options.rejectUnauthorized;
+    const startTLS = options.startTLS || false;
+    const tls = options.tls || {};
 
     // group recipients by domain(to limit the number of connections per 'To' domain).
     function groupRecipients(recipients) {
@@ -84,7 +89,7 @@ module.exports = function (options) {
         tryConnect(0);
 
         function w(s) {
-            log.debug('SEND ' + domain + '>' + s);
+            log.debug(`SEND ${domain}> ${s}`);
             sock.write(s + CRLF);
         }
 
@@ -101,7 +106,7 @@ module.exports = function (options) {
         });
 
         sock.on('error', function (err) {
-            throw Error(`Connection to ${domain} was interrupted: ${err}`);
+            throw Error(`Failed to connect to ${domain}: ${err}`);
         });
 
         let data = '';
@@ -111,14 +116,8 @@ module.exports = function (options) {
         // const login = [];
         let parts;
         let cmd;
-
-        /* SMTP relay [next hop]
-         if(mail.user && mail.pass){
-           queue.push('AUTH LOGIN');
-           login.push(new Buffer(mail.user).toString("base64"));
-           login.push(new Buffer(mail.pass).toString("base64"));
-         }
-         */
+        let upgraded = false;
+        let isUpgradeInProgress = false;
 
         queue.push('MAIL FROM:<' + from + '>');
         const recipientsLength = recipients.length;
@@ -132,23 +131,80 @@ module.exports = function (options) {
         function response(code, msg) {
             switch (code) {
                 case 220:
-                    //220 on server ready
-                    // check for ESMTP/ignore-case
-                    if (/\besmtp\b/i.test(msg)) {
-                        /* TODO: determine AUTH type; auth login, auth crm-md5, auth plain
-                        /* for Relaying.
-                         */
-                        cmd = 'EHLO';
+                    //220   on server ready
+                    if (isUpgradeInProgress === true) {
+                        sock.removeAllListeners('data');
+                        let original = sock;
+                        original.pause();
+                        let opts = {
+                            socket: sock,
+                            host: sock._host,
+                            rejectUnauthorized,
+                        };
+                        if (startTLS) {
+                            opts.secureContext = createSecureContext({ cert: tls.cert, key: tls.key });
+                        }
+                        sock = connect(
+                            opts,
+                            () => {
+                                sock.on('data', function (chunk) {
+                                    data += chunk;
+                                    parts = data.split(CRLF);
+                                    const partsLength = parts.length - 1;
+                                    for (let i = 0, len = partsLength; i < len; i++) {
+                                        onLine(parts[i]);
+                                    }
+                                    data = parts[parts.length - 1];
+                                });
+                                sock.removeAllListeners('close');
+                                sock.removeAllListeners('end');
+                            }
+                        );
+                        sock.on('error', function (err) {
+                            log.warn("Could not upgrade to TLS:", err, "Falling back to plaintext");
+                        });
+                        // Resume plaintext connection
+                        original.resume();
+                        upgraded = true;
+                        w("EHLO " + srcHost);
+                        break;
                     }
                     else {
-                        cmd = 'HELO';
+                        // check for ESMTP/ignore-case
+                        if (/\besmtp\b/i.test(msg)) {
+                            // TODO: determine AUTH type; auth login, auth crm-md5, auth plain
+                            cmd = 'EHLO';
+                        }
+                        else {
+                            upgraded = true;
+                            cmd = 'HELO';
+                        }
+                        w(`${cmd} ${srcHost}`);
+                        break;
                     }
-                    w(cmd + ' ' + srcHost);
+                case 221: // BYE
+                    sock.end();
+                    log.info("message sent successfully", msg);
+                    break;
+                case 235: // Verify OK
+                case 250: // Operation OK
+                    if (upgraded != true) {
+                        // check for STARTTLS/ignore-case
+                        if (/\bSTARTTLS\b/i.test(msg) && options.starttls) {
+                            log.debug("Server supports STARTTLS, continuing");
+                            w('STARTTLS');
+                            isUpgradeInProgress = true;
+                            break;
+                        }
+                        else {
+                            upgraded = true;
+                            log.debug("No STARTTLS support or ignored, continuing");
+                        }
+                    }
+                    w(queue[step]);
+                    step++;
                     break;
 
-                case 221: // BYE
-                case 235: // verify OK
-                case 250: // operation OK
                 case 251: // forward
                     if (step === queue.length - 1) {
                         log.info('OK:', code, msg);
@@ -159,21 +215,22 @@ module.exports = function (options) {
                     break;
 
                 case 354:
-                    // Send message, inform end by <CR><LF>.<CR><LF>
-                    log.info('sending mail', body);
+                    // Send message, inform end by `<CR><LF>.<CR><LF>`
+                    log.info('Sending mail body', body);
                     w(body);
                     w('');
                     w('.');
                     break;
 
                 case 334: // Send login details [for relay]
+                    // TODO: support login.
                     w(login[loginStep]);
                     loginStep++;
                     break;
 
                 default:
                     if (code >= 400) {
-                        log.warn('SMTP server responds with error code', code);
+                        log.error('SMTP server responds with error code', code);
                         sock.end();
                         throw Error(`SMTP server responded with code: ${code} + ${msg}`);
                     }
@@ -190,13 +247,12 @@ module.exports = function (options) {
             if (line[3] === ' ') {
                 // 250-information dash is not complete.
                 // 250 OK. space is complete.
-                let lineNumber = parseInt(line);
+                let lineNumber = parseInt(line.substr(0, 3));
                 response(lineNumber, msg);
                 msg = '';
             }
         }
     }
-
 
     /**
      * Send Mail directly
@@ -246,7 +302,7 @@ module.exports = function (options) {
             if (err) {
                 throw Error(`Error on building the message: ${err}`);
             }
-            if (dkimPrivateKey) {
+            if (dkimEnabled) {
                 // eslint-disable-next-line new-cap
                 const signature = DKIMSign(message, {
                     privateKey: dkimPrivateKey,
@@ -261,11 +317,10 @@ module.exports = function (options) {
                     await sendToSMTP(domain, srcHost, from, groups[domain], message);
                 }
                 catch (ex) {
-                    log.error(`Could not send email: ${ex}`);
+                    log.error(`Could not send email to ${domain}: ${ex}`);
                 }
             }
         });
     }
     return sendmail;
 };
-
