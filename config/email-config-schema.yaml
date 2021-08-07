@@ -3,7 +3,7 @@ required: ["bridge"]
 properties:
     bridge:
         type: "object"
-        required: ["domain", "homeserverUrl", "mxDomain", "mailPort"]
+        required: ["domain", "homeserverUrl", "mxDomain", "mailPort", "dkimEnabled", "startTLS"]
         properties:
           domain:
             type: "string"
@@ -23,4 +23,11 @@ properties:
             type: "string"
           dkimSelector:
             type: "string"
-
+          dkimEnabled:
+            type: "boolean"
+          startTLS:
+            type: "boolean"
+          TLSKey:
+            type: "string"
+          TLSCert:
+            type: "string"

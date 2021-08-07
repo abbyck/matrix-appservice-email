@@ -16,7 +16,16 @@ bridge:
   outboundPort: 2500
   # SMTP next hop address (If you want to relay mails through some server. Leave empty, for no relay)
   smtpHost: 'localhost'
-  # DKIM private key file location(eg: './dkim-private.pem'). Empty string for no DKIM signing
+  # Set to True for enabling DKIM signature for outbound emails.
+  dkimEnabled: false
+  # DKIM private key file location (eg: './dkim-private.pem').
+  # Empty string for no DKIM signing (dkimEnabled = false)
   dkimPrivateKeyLocation: ''
   # DKIM selector name. Leave empty for no DKIM
   dkimSelector: ''
+  # Enable Opportunistic TLS support for outbound emails.
+  startTLS: false
+  # TLS Key file location
+  TLSKey: ''
+  # TLS Certificate location
+  TLSCert: ''

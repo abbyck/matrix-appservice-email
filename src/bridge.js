@@ -31,10 +31,17 @@ exports.bridge = async function(port, config, registration) {
     });
 
     const sendMail = require('./email/outbound')({
-        // dkim: {
-        //     privateKey: fs.readFileSync(config.bridge.dkimPrivateKeyLocation, 'utf8'),
-        //     keySelector: config.bridge.dkimSelector,
-        // },
+        startTLS: config.bridge.startTLS,
+        tls: {
+            key: fs.existsSync(config.bridge.TLSKey) ? fs.readFileSync(config.bridge.TLSKey) : '',
+            cert: fs.existsSync(config.bridge.TLSCert) ? fs.readFileSync(config.bridge.TLSCert) : '',
+        },
+        dkimEnabled: config.bridge.dkimEnabled,
+        dkim: {
+            privateKey: fs.existsSync(config.bridge.dkimPrivateKeyLocation) ?
+                fs.readFileSync(config.bridge.dkimPrivateKeyLocation, 'utf8') : '',
+            keySelector: config.bridge.dkimSelector,
+        },
         smtpPort: config.bridge.outboundPort,
         smtpHost: config.bridge.smtpHost
     });
