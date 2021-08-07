@@ -188,9 +188,9 @@ module.exports = function (options) {
                     break;
                 case 235: // Verify OK
                 case 250: // Operation OK
-                    if (upgraded != true) {
+                    if (upgraded !== true) {
                         // check for STARTTLS/ignore-case
-                        if (/\bSTARTTLS\b/i.test(msg) && options.starttls) {
+                        if (/\bSTARTTLS\b/i.test(msg) && options.startTLS) {
                             log.debug("Server supports STARTTLS, continuing");
                             w('STARTTLS');
                             isUpgradeInProgress = true;
