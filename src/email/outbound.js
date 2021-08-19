@@ -102,7 +102,7 @@ module.exports = function (options) {
         }
         tryConnect(0);
 
-        function w(s) {
+        function writeToSocket(s) {
             log.debug(`SEND ${domain}> ${s}`);
             sock.write(s + CRLF);
         }
@@ -180,7 +180,7 @@ module.exports = function (options) {
                         // Resume plaintext connection
                         original.resume();
                         upgraded = true;
-                        w("EHLO " + srcHost);
+                        writeToSocket("EHLO " + srcHost);
                         break;
                     }
                     else {
@@ -193,7 +193,7 @@ module.exports = function (options) {
                             upgraded = true;
                             cmd = 'HELO';
                         }
-                        w(`${cmd} ${srcHost}`);
+                        writeToSocket(`${cmd} ${srcHost}`);
                         break;
                     }
                 case 221: // BYE
@@ -206,7 +206,7 @@ module.exports = function (options) {
                         // check for STARTTLS/ignore-case
                         if (/\bSTARTTLS\b/i.test(msg) && options.startTLS) {
                             log.debug("Server supports STARTTLS, continuing");
-                            w('STARTTLS');
+                            writeToSocket('STARTTLS');
                             isUpgradeInProgress = true;
                             break;
                         }
@@ -215,7 +215,7 @@ module.exports = function (options) {
                             log.debug("No STARTTLS support or ignored, continuing");
                         }
                     }
-                    w(queue[step]);
+                    writeToSocket(queue[step]);
                     step++;
                     break;
 
@@ -224,21 +224,21 @@ module.exports = function (options) {
                         log.info('OK:', code, msg);
                         return;
                     }
-                    w(queue[step]);
+                    writeToSocket(queue[step]);
                     step++;
                     break;
 
                 case 354:
                     // Send message, inform end by `<CR><LF>.<CR><LF>`
                     log.info('Sending mail body', body);
-                    w(body);
-                    w('');
-                    w('.');
+                    writeToSocket(body);
+                    writeToSocket('');
+                    writeToSocket('.');
                     break;
 
                 case 334: // Send login details [for relay]
                     // TODO: support login.
-                    w(login[loginStep]);
+                    writeToSocket(login[loginStep]);
                     loginStep++;
                     break;
 
