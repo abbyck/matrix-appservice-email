@@ -131,7 +131,7 @@ exports.bridge = async function(port, config, registration) {
  * @returns {string}    Email-ID obtained from bridge userID `localPart@domain.tld`.
  */
 function getMailIdFromUserId(userId, homeServer) {
-    const email = userId.slice(8, userId.lastIndexOf(":"+ homeServer));
+    const email = userId.slice('@_email_'.length, userId.lastIndexOf(":"+ homeServer));
     const localPart = email.slice(0, email.lastIndexOf('_'));
     const domain = email.slice(email.lastIndexOf('_')+1);
     return `${localPart}@${domain}`;
