@@ -50,7 +50,7 @@ module.exports = function (options) {
 
     /**
      * Resolve MX records by domain.
-     * @param domain
+     * @param {string} domain
      * @returns {Promise<MxRecord[]>}
      */
     async function resolveMX(domain) {
