@@ -255,29 +255,10 @@ module.exports = function (options) {
     }
 
     /**
-     * Send Mail directly
-     * `mail` object attribute reference: https://nodemailer.com/extras/mailcomposer/#e-mail-message-fields
-     * @param mail {object}
-     *             from
-     *             to
-     *             cc
-     *             bcc
-     *             replyTo
-     *             returnTo
-     *             subject
-     *             type         default 'text/plain', 'text/html'
-     *             charset      default 'utf-8'
-     *             encoding     default 'base64'
-     *             id           default timestamp+from
-     *             headers      object
-     *             content
-     *             attachments
-     *               [{
-     *                 type
-     *                 filename
-     *                 content
-     *               }].
-     *
+     *  Send Mail directly
+     * @param mail Mail object containing message, to/from etc.
+     * Complete attributes reference: https://nodemailer.com/extras/mailcomposer/#e-mail-message-fields
+     * @returns {Promise<void>}
      */
     async function sendmail(mail) {
         const mailMe = new MailComposer(mail);
