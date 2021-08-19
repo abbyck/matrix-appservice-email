@@ -31,6 +31,11 @@ module.exports = function (options) {
         return groups;
     }
 
+    /***
+     * Get email addresses from address string.
+     * @param addresses
+     * @returns {*[]}
+     */
     function getAddresses(addresses) {
         const results = [];
         if (!Array.isArray(addresses)) {
@@ -46,7 +51,7 @@ module.exports = function (options) {
     /**
      * Resolve MX records by domain.
      * @param domain
-     * @returns {Promise<MxRecord[]|*[]>}
+     * @returns {Promise<MxRecord[]>}
      */
     async function resolveMX(domain) {
         let resolvedMX = [];
@@ -64,6 +69,15 @@ module.exports = function (options) {
         }
     }
 
+    /***
+     * Send email using SMTP.
+     * @param domain    The to address.
+     * @param srcHost   Source hostname.
+     * @param from      Source from address.
+     * @param recipients    Recipients list.
+     * @param body      Email body
+     * @returns {Promise<void>}
+     */
     async function sendToSMTP(domain, srcHost, from, recipients, body) {
         const resolvedMX = await resolveMX(domain);
         log.info("Resolved mx list:", resolvedMX);
