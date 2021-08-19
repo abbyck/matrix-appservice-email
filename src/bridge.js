@@ -60,7 +60,7 @@ exports.bridge = async function(port, config, registration) {
             if (ASBot.isRemoteUser(member)) {
                 log.info("Remote email userId", member);
                 // Query for `m.room.canonical_alias` only if roomEmail is undefined(first occurrence).
-                if (typeof roomEmail === "undefined") {
+                if (!roomEmail) {
                     const intent = bridge.getIntent(member);
                     let roomAlias;
                     try {
