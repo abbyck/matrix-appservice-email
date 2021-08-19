@@ -81,7 +81,7 @@ module.exports = function (options) {
     async function sendToSMTP(domain, srcHost, from, recipients, body) {
         const resolvedMX = await resolveMX(domain);
         log.info("Resolved mx list:", resolvedMX);
-        let sock;
+        let sock, msg = '';
         function tryConnect(i) {
             if (i >= resolvedMX.length) {
                 throw Error(`Could not connect to any SMTP server for ${domain}`);
@@ -101,6 +101,20 @@ module.exports = function (options) {
             });
         }
         tryConnect(0);
+
+        function onLine(line) {
+            log.debug('RECV ' + domain + '>' + line);
+
+            msg += (line + CRLF);
+
+            if (line[3] === ' ') {
+                // 250-information dash is not complete.
+                // 250 OK. space is complete.
+                let lineNumber = parseInt(line.substr(0, 3));
+                response(lineNumber, msg);
+                msg = '';
+            }
+        }
 
         function writeToSocket(s) {
             log.debug(`SEND ${domain}> ${s}`);
@@ -248,22 +262,6 @@ module.exports = function (options) {
                         sock.end();
                         throw Error(`SMTP server responded with code: ${code} + ${msg}`);
                     }
-            }
-        }
-
-        let msg = '';
-
-        function onLine(line) {
-            log.debug('RECV ' + domain + '>' + line);
-
-            msg += (line + CRLF);
-
-            if (line[3] === ' ') {
-                // 250-information dash is not complete.
-                // 250 OK. space is complete.
-                let lineNumber = parseInt(line.substr(0, 3));
-                response(lineNumber, msg);
-                msg = '';
             }
         }
     }
