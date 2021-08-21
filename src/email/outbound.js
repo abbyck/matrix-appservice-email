@@ -10,6 +10,17 @@ const resolver = new Resolver();
 const log = Logging.get("outbound");
 const CRLF = '\r\n';
 
+const smtpCodes = {
+    ServiceReady: 220,
+    Bye: 221,
+    AuthSuccess: 235,
+    OperationOK: 250,
+    ForwardNonLocalUser: 251,
+    StartMailBody: 354,
+    ServerChallenge: 334,
+    NegativeCompletion:400,
+};
+
 module.exports = function (options) {
     options = options || {};
     const dkimEnabled = options.dkimEnabled || false;
@@ -158,7 +169,7 @@ module.exports = function (options) {
 
         function response(code, msg) {
             switch (code) {
-                case 220:
+                case smtpCodes.ServiceReady:
                     //220   on server ready
                     if (isUpgradeInProgress === true) {
                         sock.removeAllListeners('data');
@@ -210,12 +221,13 @@ module.exports = function (options) {
                         writeToSocket(`${cmd} ${srcHost}`);
                         break;
                     }
-                case 221: // BYE
+                case smtpCodes.Bye:
+                    // BYE
                     sock.end();
                     log.info("message sent successfully", msg);
                     break;
-                case 235: // Verify OK
-                case 250: // Operation OK
+                case smtpCodes.AuthSuccess: // Verify OK
+                case smtpCodes.OperationOK: // Operation OK
                     if (upgraded !== true) {
                         // check for STARTTLS/ignore-case
                         if (/\bSTARTTLS\b/i.test(msg) && options.startTLS) {
@@ -233,7 +245,8 @@ module.exports = function (options) {
                     step++;
                     break;
 
-                case 251: // forward
+                case smtpCodes.ForwardNonLocalUser:
+                    // User not local; will forward.
                     if (step === queue.length - 1) {
                         log.info('OK:', code, msg);
                         return;
@@ -242,22 +255,24 @@ module.exports = function (options) {
                     step++;
                     break;
 
-                case 354:
-                    // Send message, inform end by `<CR><LF>.<CR><LF>`
+                case smtpCodes.StartMailBody:
+                    // Start mail input
+                    // Inform end by `<CR><LF>.<CR><LF>`
                     log.info('Sending mail body', body);
                     writeToSocket(body);
                     writeToSocket('');
                     writeToSocket('.');
                     break;
 
-                case 334: // Send login details [for relay]
+                case smtpCodes.ServerChallenge:
+                    // Send login details [for relay]
                     // TODO: support login.
                     writeToSocket(login[loginStep]);
                     loginStep++;
                     break;
 
                 default:
-                    if (code >= 400) {
+                    if (code >= smtpCodes.NegativeCompletion) {
                         log.error('SMTP server responds with error code', code);
                         sock.end();
                         throw Error(`SMTP server responded with code: ${code} + ${msg}`);
