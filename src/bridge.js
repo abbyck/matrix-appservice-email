@@ -1,5 +1,5 @@
 const fs = require("fs");
-const { Bridge } = require('matrix-appservice-bridge');
+const { Bridge, MatrixUser } = require('matrix-appservice-bridge');
 const { startSMTP } = require('./email');
 const { Logging } = require('./log');
 
@@ -131,9 +131,10 @@ exports.bridge = async function(port, config, registration) {
  * @returns {string}    Email-ID obtained from bridge userID `localPart@domain.tld`.
  */
 function getMailIdFromUserId(userId, homeServer) {
-    const email = userId.slice('@_email_'.length, userId.lastIndexOf(":"+ homeServer));
-    const localPart = email.slice(0, email.lastIndexOf('_'));
-    const domain = email.slice(email.lastIndexOf('_')+1);
+    const mUserId = new MatrixUser(userId);
+    const emailPart = mUserId.localpart.slice('@email_'.length);
+    const localPart = emailPart.slice(0, emailPart.lastIndexOf('_'));
+    const domain = emailPart.slice(emailPart.lastIndexOf('_')+1);
     return `${localPart}@${domain}`;
 }
 
