@@ -75,24 +75,43 @@ const getUserIdOrAlias = function(localPart) {
 /***
  * Send the inbound mail's contents to the corresponding rooms.
  * @param {string}  text    The text content of the email.
+ * @param {string}  toAdd
  * @param {ParsedMailbox}  fromAdd Email address of the sender.
- * @param {string}  alias   Destination room alias.
+ * @param {address} from    The from address object from email header.
  * @param {object}  config  Bridge configurations.
  * @returns {Promise<void>}
  */
-async function handleMail(text, fromAdd, alias, config) {
+async function handleMail(text, toAdd, fromAdd, from, config) {
+    let alias = "", receivedAddress;
+    try {
+        receivedAddress = getRoomAliasFromEmailTo(toAdd, config.bridge.domain);
+        if (receivedAddress[0] === "room") {
+            alias = `#${receivedAddress[1]}:${receivedAddress[2]}`;
+        }
+        else if (receivedAddress[0] === "user") {
+            // TODO: send message to user(DM)
+            return;
+        }
+    }
+    catch (ex) {
+        log.error(`Error resolving room address: ${ex}`);
+        //TODO: Send a reply to the sender indicating `unable to resolve room`
+        throw Error("Unable to resolve the room");
+    }
     if (!text.trim().length) {
         // text only contains whitespace (ie. spaces, tabs or line breaks)
         log.warn("Inbound email contains whitespace only");
-        return;
+        throw Error(`Inbound email contains whitespace only, ignoring this empty message from ${fromAdd.address}`);
     }
 
     log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
+    log.info("Email contents from", fromAdd.address, "will be sent to", `${receivedAddress[1]}:${receivedAddress[2]}`);
 
     const intent = bridge.getIntent(`@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`);
+    const displayName = from.value[0].name !== "" ? `${from.value[0].name} (email)` : `${fromAdd.address} (email)`;
+    await intent.setDisplayName(displayName);
     let message = Buffer.from(text, "utf-8");
     let roomID = await intent.resolveRoom(alias);
-
     if (!roomID.startsWith("!")) {
         throw Error("Could not resolve roomID from given alias");
     }
@@ -128,27 +147,13 @@ exports.startSMTP = function (config) {
         authOptional: true,
 
         onData: function (stream, session, callback) {
-            let subject, text;
+            let subject, text, from;
             const mailparser = new MailParser();
-            const fromAdd = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
-            let receivedAddress = getRoomAliasFromEmailTo(session.envelope.rcptTo, config.bridge.domain);
-            let alias = "";
-            try {
-                if (receivedAddress[0] === "room") {
-                    alias = `#${receivedAddress[1]}:${receivedAddress[2]}`;
-                }
-                else if (receivedAddress[0] === "user") {
-                    // TODO: send message to user
-                    return;
-                }
-            }
-            catch (err) {
-                log.error(`Error resolving room address: ${err.message}`);
-            }
+            const fromAddress = ParseEmailAddress.parseOneAddress(session.envelope.mailFrom.address);
+            const toAddress = session.envelope.rcptTo;
             mailparser.on('headers', headers => {
                 subject = headers.get('subject');
-                log.info("Email contents from", fromAdd.address, "will be sent to",
-                    `${receivedAddress[1]}:${receivedAddress[2]}`);
+                from = headers.get('from');
             });
 
             mailparser.on('data', data => {
@@ -158,7 +163,7 @@ exports.startSMTP = function (config) {
             });
 
             mailparser.on('end', () => {
-                handleMail(text, fromAdd, alias, config)
+                handleMail(text, toAddress, fromAddress, from, config)
                     .then(() => log.info("Message sent to the room"))
                     .catch((err) => log.error(`Could not handle mail:`, err));
             });
@@ -167,6 +172,5 @@ exports.startSMTP = function (config) {
             stream.on('end', callback);
         }
     });
-    SMTP.listen(config.bridge.mailPort);
+    SMTP.listen(config.email.inboundPort);
 };
-

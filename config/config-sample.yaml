@@ -1,14 +1,34 @@
 # Sample config
-
 bridge:
   # Domain part of the bridge, e.g. matrix.org
   domain: "localhost"
   # HomeServer URL
   homeserverUrl: "http://localhost:8008"
-  # MX inbound domain. 
-  # This is the domain to which inbound mails are sent by email users
-  mxDomain: "localhost"
-  # Mail submission port (587 is recommended)
-  mailPort: 2525
   # The TCP port on which the appservice runs on.
   port: 8090
+email:
+  # MX inbound domain.
+  # This is the domain to which inbound mails are sent by email users (eg: matrix.org)
+  mxDomain: "localhost"
+  # SMTP inbound port(Usually 25).
+  inboundPort: 2525
+  # SMTP outbound port(Usually 25).
+  outboundPort: 2500
+  # SMTP next hop address (If you want to relay outbound mails through some server. Leave empty, for no relay)
+  smtpHost: 'localhost'
+  #DKIM signing options
+  dkim:
+    # Set to `true` for enabling DKIM signing
+    enabled: false
+    # DKIM private key file location (eg: './dkim-private.pem').
+    dkimKey: ''
+    #DKIM selector
+    selector: ''
+  # TLS Key and Cert for Opportunistic TLS upgrades (STARTTLS).
+  tls:
+    # Set to `true` for enabling STARTTLS support.
+    enabled: false
+    # TLS Key file location.
+    tlsKey: ''
+    # TLS Certificate file location.
+    tlsCert: ''
