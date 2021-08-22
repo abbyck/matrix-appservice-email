@@ -75,6 +75,7 @@ const getUserIdOrAlias = function(localPart) {
 /***
  * Send the inbound mail's contents to the corresponding rooms.
  * @param {string}  text    The text content of the email.
+ * @param {string}  toAdd
  * @param {ParsedMailbox}  fromAdd Email address of the sender.
  * @param {address} from    The from address object from email header.
  * @param {object}  config  Bridge configurations.
@@ -171,5 +172,5 @@ exports.startSMTP = function (config) {
             stream.on('end', callback);
         }
     });
-    SMTP.listen(config.bridge.mailPort);
+    SMTP.listen(config.email.inboundPort);
 };

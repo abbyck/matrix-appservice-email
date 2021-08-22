@@ -31,19 +31,19 @@ exports.bridge = async function(port, config, registration) {
     });
 
     const sendMail = require('./email/outbound')({
-        startTLS: config.bridge.startTLS,
+        startTLS: config.email.tls.enabled,
         tls: {
-            key: fs.existsSync(config.bridge.TLSKey) ? fs.readFileSync(config.bridge.TLSKey) : '',
-            cert: fs.existsSync(config.bridge.TLSCert) ? fs.readFileSync(config.bridge.TLSCert) : '',
+            key: fs.existsSync(config.email.tls.tlsKey) ? fs.readFileSync(config.email.tlsKey) : '',
+            cert: fs.existsSync(config.email.tls.tlsCert) ? fs.readFileSync(config.email.tls.tlsCert) : '',
         },
-        dkimEnabled: config.bridge.dkimEnabled,
+        dkimEnabled: config.email.dkim.enabled,
         dkim: {
-            privateKey: fs.existsSync(config.bridge.dkimPrivateKeyLocation) ?
-                fs.readFileSync(config.bridge.dkimPrivateKeyLocation, 'utf8') : '',
-            keySelector: config.bridge.dkimSelector,
+            privateKey: fs.existsSync(config.email.dkim.dkimKey) ?
+                fs.readFileSync(config.email.dkim.dkimKey, 'utf8') : '',
+            keySelector: config.email.dkim.selector,
         },
-        smtpPort: config.bridge.outboundPort,
-        smtpHost: config.bridge.smtpHost
+        smtpPort: config.email.outboundPort,
+        smtpHost: config.email.smtpHost
     });
 
     async function sendMessageViaEmail(roomid, event) {
@@ -71,7 +71,7 @@ exports.bridge = async function(port, config, registration) {
                         log.error(`Could not get roomAlias`, ex);
                         return;
                     }
-                    roomEmail = getRoomMailIdFromRoomAlias(roomAlias.alias, config.bridge.mxDomain);
+                    roomEmail = getRoomMailIdFromRoomAlias(roomAlias.alias, config.email.mxDomain);
                     log.info("Room email id:", roomEmail);
                 }
                 const emailIdOfMember = getMailIdFromUserId(member, config.bridge.domain);

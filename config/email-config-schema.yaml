@@ -1,33 +1,44 @@
+"$schema": "http://json-schema.org/draft-04/schema#"
 type: "object"
-required: ["bridge"]
+required: ["bridge", "email"]
 properties:
-    bridge:
+  bridge:
+    type: "object"
+    required: ["domain", "homeserverUrl", "port"]
+    properties:
+      domain:
+        type: "string"
+      homeserverUrl:
+        type: "string"
+      port:
+        type: "number"
+  email:
+    type: "object"
+    required: ["mxDomain", "inboundPort", "outboundPort"]
+    properties:
+      mxDomain:
+        type: "string"
+      inboundPort:
+        type: "number"
+      outboundPort:
+        type: "number"
+      smtpHost:
+        type: "string"
+      dkim:
         type: "object"
-        required: ["domain", "homeserverUrl", "mxDomain", "mailPort", "dkimEnabled", "startTLS"]
         properties:
-          domain:
-            type: "string"
-          homeserverUrl:
-            type: "string"
-          mxDomain:
-            type: "string"
-          mailPort:
-            type: "number"
-          port:
-            type: "number"
-          outboundPort:
-            type: "number"
-          smtpHost:
-            type: "string"
-          dkimPrivateKeyLocation:
-            type: "string"
-          dkimSelector:
-            type: "string"
-          dkimEnabled:
+          enabled:
             type: "boolean"
-          startTLS:
-            type: "boolean"
-          TLSKey:
+          dkimKey:
             type: "string"
-          TLSCert:
+          selector:
+            type: "string"
+      tls:
+        type: "object"
+        properties:
+          enabled:
+            type: "boolean"
+          tlsKey:
+            type: "string"
+          tlsCert:
             type: "string"
