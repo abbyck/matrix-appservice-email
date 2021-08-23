@@ -19,11 +19,14 @@ To set up the bridge, simply clone this repository.
 ```node app.js -c config/config.yaml```
 
 #### Recommended options for the bridge.
+
 Most of the available options are detailed on the sample configuration file.  
 It's _highly recommended to use_ the following settings to ensure email delivery.
+* Correct [MX records](https://www.cloudflare.com/en-in/learning/dns/dns-records/dns-mx-record/) and [SPF records](https://en.wikipedia.org/wiki/Sender_Policy_Framework). 
 * [DKIM (DomainKeys Identified Mail)](https://en.wikipedia.org/wiki/DomainKeys_Identified_Mail).
     - You may use [opendkim-genkey](http://www.opendkim.org/opendkim-genkey.8.html) to generate the DKIM keys.
 * TLS Keys for encrypted outbounds to supported servers.
+
 ### Docker
 
 A Dockerfile is included. To use it:
