@@ -17,17 +17,17 @@
   },
   "homepage": "https://github.com/abbyck/matrix-appservice-email#readme",
   "dependencies": {
-    "chalk": "^4.1.1",
+    "chalk": "^4.1.2",
     "dkim-signer": "^0.2.2",
     "email-addresses": "^4.0.0",
-    "mailparser": "^3.2.0",
-    "matrix-appservice-bridge": "^2.6.1",
+    "mailparser": "^3.3.0",
+    "matrix-appservice-bridge": "^2.7.0",
     "nodemailer": "^6.6.3",
     "smtp-server": "^3.9.0",
     "winston": "^3.3.3",
     "winston-daily-rotate-file": "^2.0.0-rc.6"
   },
   "devDependencies": {
-    "eslint": "^7.28.0"
+    "eslint": "^7.32.0"
   }
 }
