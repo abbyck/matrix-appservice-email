@@ -12,7 +12,7 @@ To set up the bridge, simply clone this repository.
 1. `git clone https://github.com/abbyck/matrix-appservice-email.git`
 2. Install the dependencies `cd matrix-appservice-email && npm i`
 3. Generate the Application Service registration file with
-`node app.js -r -u "http://localhost:8090" -f /config/email-registration.yaml`.<br />http://localhost:8090 is the URL that the AS will listen to.
+`node app.js -r -u "http://localhost:8090" -f /config/email-registration.yaml` (http://localhost:8090 is the URL that the AS will listen to.
 4. Add the registration details to your homeserver configuration by adding the `email-registration.yaml`.
 5. Make a copy of the sample `config/config-sample.yaml` and carefully change the options as required.
 6. Run the bridge!
