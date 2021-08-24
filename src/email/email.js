@@ -2,6 +2,7 @@ const { SMTPServer } = require("smtp-server");
 const { MailParser } = require('mailparser');
 const ParseEmailAddress = require("email-addresses");
 const { Logging } = require('../log');
+const jsSdk = require("matrix-js-sdk");
 
 const log = Logging.get("email");
 
@@ -105,7 +106,8 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
     }
 
     log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
-    log.info("Email contents from", fromAdd.address, "will be sent to", `${receivedAddress[1]}:${receivedAddress[2]}`);
+    log.info("Email contents from", fromAdd.address, "will be sent to",
+        `${receivedAddress[1]}:${receivedAddress[2]}`);
 
     const fromId = `@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`;
     const intent = bridge.getIntent(fromId);
@@ -113,38 +115,83 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
     await intent.setDisplayName(displayName);
     let message = Buffer.from(text, "utf-8");
     if (alias) {
+        // Destination is a room.
         roomID = await intent.resolveRoom(alias);
     }
     else {
-        // check the map, if there exists a room mapping
-        roomID = (await intent.createRoom({
-            createAsClient: true,
-            options: {
-                name: (displayName + " (PM)"),
-                visibility: "private",
-                is_direct: true,
-                initial_state: [{
-                    content: {
-                        users: {
-                            [matrixId]: 100,
-                            [fromId]: 100,
-                        },
-                        events: {
-                            "m.room.avatar": 10,
-                            "m.room.name": 10,
-                            "m.room.canonical_alias": 100,
-                            "m.room.history_visibility": 100,
-                            "m.room.power_levels": 100,
-                            "m.room.encryption": 100
-                        },
-                        invite: 100,
-                    },
-                    type: "m.room.power_levels",
-                    state_key: "",
-                }]
+        let dmMappings;
+        const ASBotIntent = bridge.getIntent();
+        const client = ASBotIntent.getClient();
+        const botClient = jsSdk.createClient({
+            baseUrl: client.baseUrl,
+            accessToken: client._http.opts.accessToken,
+            userId: client.credentials.userId
+        });
+        // check the DM recipient exists
+        try {
+            await botClient.getProfileInfo(matrixId);
+        }
+        catch (ex) {
+            throw Error(`Could not find the recipient user(DM) ${ex}`);
+        }
+        // Check the bridge bot's account_data for existing DM relations.
+        try {
+            dmMappings = await botClient.getAccountDataFromServer("me.abhy.email-bridge");
+        }
+        catch (ex) {
+            throw Error(`Could not get DM room mappings from bot's account data ${ex}`);
+        }
+        if (matrixId in dmMappings) {
+            roomID = dmMappings[matrixId].roomId;
+        }
+        else {
+            try {
+                roomID = (await intent.createRoom({
+                    createAsClient: true,
+                    options: {
+                        name: (displayName + " (PM)"),
+                        visibility: "private",
+                        is_direct: true,
+                        initial_state: [{
+                            content: {
+                                users: {
+                                    [matrixId]: 100,
+                                    [fromId]: 100,
+                                },
+                                events: {
+                                    "m.room.avatar": 10,
+                                    "m.room.name": 10,
+                                    "m.room.canonical_alias": 100,
+                                    "m.room.history_visibility": 100,
+                                    "m.room.power_levels": 100,
+                                    "m.room.encryption": 100
+                                },
+                                invite: 100,
+                            },
+                            type: "m.room.power_levels",
+                            state_key: "",
+                        }]
+                    }
+                })).room_id;
+                await intent.invite(roomID, matrixId);
             }
-        })).room_id;
-        await intent.invite(roomID, matrixId);
+            catch (ex) {
+                throw Error(`Could not create a new DM with ${fromAdd.address} & ${matrixId}`);
+            }
+            try {
+                // Store the mappings to the bot's account data.
+                await botClient.setAccountData("me.abhy.email-bridge", {
+                    ...dmMappings,
+                    [matrixId]: {
+                        "roomId": roomID,
+                        "emailUser": fromAdd.address,
+                    }
+                });
+            }
+            catch (ex) {
+                throw Error("Could not store update the DM mappings");
+            }
+        }
     }
     if (!roomID.startsWith("!")) {
         throw Error("Could not resolve roomID from given alias");
