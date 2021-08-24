@@ -82,15 +82,15 @@ const getUserIdOrAlias = function(localPart) {
  * @returns {Promise<void>}
  */
 async function handleMail(text, toAdd, fromAdd, from, config) {
-    let alias = "", receivedAddress;
+    let alias = "", matrixId = "", roomID = "", receivedAddress;
     try {
         receivedAddress = getRoomAliasFromEmailTo(toAdd, config.bridge.domain);
         if (receivedAddress[0] === "room") {
             alias = `#${receivedAddress[1]}:${receivedAddress[2]}`;
         }
         else if (receivedAddress[0] === "user") {
-            // TODO: send message to user(DM)
-            return;
+            matrixId = `@${receivedAddress[1]}:${receivedAddress[2]}`;
+            log.info(matrixId);
         }
     }
     catch (ex) {
@@ -107,11 +107,45 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
     log.info("Inbound email contents: "+ text.substring(0, 10) + "... ");
     log.info("Email contents from", fromAdd.address, "will be sent to", `${receivedAddress[1]}:${receivedAddress[2]}`);
 
-    const intent = bridge.getIntent(`@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`);
+    const fromId = `@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`;
+    const intent = bridge.getIntent(fromId);
     const displayName = from.value[0].name !== "" ? `${from.value[0].name} (email)` : `${fromAdd.address} (email)`;
     await intent.setDisplayName(displayName);
     let message = Buffer.from(text, "utf-8");
-    let roomID = await intent.resolveRoom(alias);
+    if (alias) {
+        roomID = await intent.resolveRoom(alias);
+    }
+    else {
+        // check the map, if there exists a room mapping
+        roomID = (await intent.createRoom({
+            createAsClient: true,
+            options: {
+                name: (displayName + " (PM)"),
+                visibility: "private",
+                is_direct: true,
+                initial_state: [{
+                    content: {
+                        users: {
+                            [matrixId]: 100,
+                            [fromId]: 100,
+                        },
+                        events: {
+                            "m.room.avatar": 10,
+                            "m.room.name": 10,
+                            "m.room.canonical_alias": 100,
+                            "m.room.history_visibility": 100,
+                            "m.room.power_levels": 100,
+                            "m.room.encryption": 100
+                        },
+                        invite: 100,
+                    },
+                    type: "m.room.power_levels",
+                    state_key: "",
+                }]
+            }
+        })).room_id;
+        await intent.invite(roomID, matrixId);
+    }
     if (!roomID.startsWith("!")) {
         throw Error("Could not resolve roomID from given alias");
     }
