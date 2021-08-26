@@ -23,7 +23,7 @@ exports.bridge = async function(port, config, registration) {
                 if (event.type === "m.room.member" && event.state_key) {
                     // Check DM leave
                     if (event.content.membership === "leave") {
-                        checkMappingsAndLeaveDM(event.sender, event.room_id);
+                        checkMappingsAndLeaveDM(event.state_key, event.room_id);
                     }
                 }
                 if (event.type !== "m.room.message" || !event.content) {
