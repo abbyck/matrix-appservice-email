@@ -19,13 +19,29 @@ exports.bridge = async function(port, config, registration) {
             onEvent: function(request, context) {
                 // events from matrix
                 const event = request.getData();
+                if (event.type === "m.room.member" && event.state_key) {
+                    // Check DM leave
+                    if (event.content.membership === "leave") {
+                        checkMappingsAndLeaveDM(event.state_key, event.room_id)
+                            .then(() => {
+                                log.info(`Removed the mapping`);
+                            })
+                            .catch(ex => {
+                                log.error(`Could not remove the mapping: ${ex}`);
+                            });
+                    }
+                }
                 if (event.type !== "m.room.message" || !event.content) {
                     return;
                 }
-                log.info(`Matrix-side: ${event.sender}: ${event}
-                RoomID: ${event.room_id}, EventID: ${event.event_id} 
-                `);
-                sendMessageViaEmail(event.room_id, event);
+                log.info(`Matrix-side: ${event.sender}: RoomID: ${event.room_id}, EventID: ${event.event_id}`);
+                sendMessageViaEmail(event.room_id, event)
+                    .then(() => {
+                        log.info(`Mail sent`);
+                    })
+                    .catch(ex => {
+                        log.error(`sendMessageViaEmail failed, ${ex}`);
+                    });
             }
         }
     });
@@ -47,7 +63,34 @@ exports.bridge = async function(port, config, registration) {
     });
 
     async function sendMessageViaEmail(roomid, event) {
-        let roomEmail, roomMembers;
+        const botClient = bridge.getIntent().getClient();
+        let roomEmail, roomMembers, dmMappings;
+        try {
+            dmMappings = await botClient.getAccountDataFromServer("me.abhy.email-bridge");
+        }
+        catch (ex) {
+            throw Error(`Could not fetch the DM Mappings from account data: ${ex}`);
+        }
+        // Check if the user ID is in DM mappings.
+        if (event.user_id in dmMappings) {
+           log.info('Sender is in DM mappings');
+            // Check if the roomID mapping
+            if (dmMappings[event.user_id].roomId === event.room_id) {
+                log.info('Message is from a DM');
+                roomEmail = getRoomMailIdFromUserId(event.user_id, config.email.mxDomain);
+                sendMail({
+                    from: roomEmail,
+                    to: getMailIdFromUserId(dmMappings[event.user_id].emailUser),
+                    subject: `You have a message from ${event.sender}`,
+                    html: `${event.content.body}`,
+                }).then(() => {
+                    log.info(`Message sent from ${roomEmail} to ${roomEmail}`);
+                }).catch(ex => {
+                    throw Error(`Could not sent email from ${roomEmail} to ${roomEmail}: ${ex}`);
+                });
+                return;
+            }
+        }
         const ASBot = bridge.getBot();
         try {
             roomMembers = await ASBot.getJoinedMembers(roomid).catch();
@@ -60,9 +103,9 @@ exports.bridge = async function(port, config, registration) {
             if (ASBot.isRemoteUser(member)) {
                 log.info("Remote email userId", member);
                 // Query for `m.room.canonical_alias` only if roomEmail is undefined(first occurrence).
+                let roomAlias;
                 if (!roomEmail) {
                     const intent = bridge.getIntent(member);
-                    let roomAlias;
                     try {
                         roomAlias = await intent.getStateEvent(roomid, 'm.room.canonical_alias');
                         log.info("Room alias:", roomAlias.alias);
@@ -78,13 +121,41 @@ exports.bridge = async function(port, config, registration) {
                 sendMail({
                     from: roomEmail,
                     to: emailIdOfMember,
-                    subject: `You have a message from ${event.sender}`,
+                    subject: `You have a message from ${roomAlias.alias}`,
                     html: `${event.content.body}`,
-                }).then( _ => {
+                }).then(() => {
                     log.info(`Message sent from ${roomEmail} to ${roomEmail}`);
                 }).catch(ex => {
                     log.error(`Could not sent email from ${roomEmail} to ${roomEmail}: ${ex}`);
                 });
+            }
+        }
+    }
+
+    async function checkMappingsAndLeaveDM(sender, roomId) {
+        let dmMappings;
+        const botClient = bridge.getIntent().getClient();
+        try {
+            dmMappings = await botClient.getAccountDataFromServer('me.abhy.email-bridge');
+        }
+        catch (ex) {
+                throw Error(`Failed to get DM mappings from HS: ${ex}`);
+        }
+        if (sender in dmMappings && dmMappings[sender].roomId === roomId) {
+            log.info(`${sender} left from DM room ${roomId}`);
+            const intent = bridge.getIntent(dmMappings[sender].emailUser);
+            try {
+                await intent.leave(roomId, "Empty room");
+            }
+            catch (ex) {
+                throw Error(`${sender} could not leave the empty room: ${ex}`);
+            }
+            try {
+                delete dmMappings[sender];
+                await botClient.setAccountData('me.abhy.email-bridge', dmMappings);
+            }
+            catch (ex) {
+                throw Error(`Could not update the DM Mappings: ${ex}`);
             }
         }
     }
@@ -148,4 +219,16 @@ function getRoomMailIdFromRoomAlias(roomAlias, mxDomain) {
     const alias = roomAlias.slice(1, roomAlias.lastIndexOf(":"));
     const homeServer = roomAlias.slice(roomAlias.lastIndexOf(":")+1);
     return `room+${alias}_${homeServer}@${mxDomain}`;
+}
+
+/**
+ * Returns the email address for a userID
+ * @param userId        Corresponding user ID.
+ * @param mxDomain      SMTP listening domain.
+ * @returns {string}    Email address in the format `room+<alias>_<homeserver>@matrix.org`
+ */
+function getRoomMailIdFromUserId(userId, mxDomain) {
+    const localPart = userId.slice(1, userId.lastIndexOf(":"));
+    const homeServer = userId.slice(userId.lastIndexOf(":")+1);
+    return `user+${localPart}_${homeServer}@${mxDomain}`;
 }
