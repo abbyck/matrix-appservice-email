@@ -22,7 +22,6 @@
     "email-addresses": "^4.0.0",
     "mailparser": "^3.3.0",
     "matrix-appservice-bridge": "^2.7.0",
-    "matrix-js-sdk": "^12.3.1",
     "nodemailer": "^6.6.3",
     "smtp-server": "^3.9.0",
     "winston": "^3.3.3",
