@@ -3,6 +3,7 @@
 First class email bridge for Matrix.  
 This bridge enables Email users and Matrix users to communicate back and forth.
 
+[This was made during Google Summer of Code 2021](https://matrix.org/blog/2021/05/20/google-summer-of-code-2021#abhinav-krishna-c-k-first-class-email-bridge)
 
 
 ### Setup:
