@@ -2,7 +2,6 @@ const fs = require("fs");
 const { Bridge, MatrixUser } = require('matrix-appservice-bridge');
 const { startSMTP } = require('./email');
 const { Logging } = require('./log');
-const jsSdk = require("matrix-js-sdk");
 
 const log = Logging.get("bridge");
 
@@ -53,12 +52,7 @@ exports.bridge = async function(port, config, registration) {
     });
 
     async function sendMessageViaEmail(roomid, event) {
-        const client = bridge.getIntent().getClient();
-        const botClient = jsSdk.createClient({
-            baseUrl: client.baseUrl,
-            accessToken: client._http.opts.accessToken,
-            userId: client.credentials.userId
-        });
+        const botClient = bridge.getIntent().getClient();
         let roomEmail, roomMembers, dmMappings;
         try {
             dmMappings = await botClient.getAccountDataFromServer("me.abhy.email-bridge");
@@ -129,12 +123,7 @@ exports.bridge = async function(port, config, registration) {
 
     async function checkMappingsAndLeaveDM(sender, roomId) {
         let dmMappings;
-        const client = bridge.getIntent().getClient();
-        const botClient = jsSdk.createClient({
-            baseUrl: client.baseUrl,
-            accessToken: client._http.opts.accessToken,
-            userId: client.credentials.userId
-        });
+        const botClient = bridge.getIntent().getClient();
         try {
             dmMappings = await botClient.getAccountDataFromServer('me.abhy.email-bridge');
         }

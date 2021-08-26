@@ -2,7 +2,6 @@ const { SMTPServer } = require("smtp-server");
 const { MailParser } = require('mailparser');
 const ParseEmailAddress = require("email-addresses");
 const { Logging } = require('../log');
-const jsSdk = require("matrix-js-sdk");
 
 const log = Logging.get("email");
 
@@ -121,12 +120,7 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
     }
     else {
         let dmMappings;
-        const client = bridge.getIntent().getClient();
-        const botClient = jsSdk.createClient({
-            baseUrl: client.baseUrl,
-            accessToken: client._http.opts.accessToken,
-            userId: client.credentials.userId
-        });
+        const botClient = bridge.getIntent().getClient();
         // check the DM recipient exists
         try {
             await botClient.getProfileInfo(matrixId);
