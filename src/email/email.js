@@ -111,14 +111,18 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
 
     const fromId = `@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`;
     const intent = bridge.getIntent(fromId);
-    const displayName = from.value[0].name !== "" ? `${from.value[0].name} (email)` : `${fromAdd.address} (email)`;
-    await intent.setDisplayName(displayName);
+    const displayName = from.value[0].name !== "" ? `${from.value[0].name}` : `${fromAdd.address}`;
     let message = Buffer.from(text, "utf-8");
+
     if (alias) {
-        // Destination is a room.
+        // Destination is a public room.
+        // Full name + (email) in public Room
+        await intent.setDisplayName(`${displayName} (email)`);
         roomID = await intent.resolveRoom(alias);
     }
     else {
+        // Full name in DM
+        await intent.setDisplayName(`${displayName}`);
         let dmMappings;
         const ASBotIntent = bridge.getIntent();
         const client = ASBotIntent.getClient();
@@ -146,16 +150,22 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
         }
         else {
             try {
+                // Create a new DM and invite the [m] user
                 roomID = (await intent.createRoom({
                     createAsClient: true,
                     options: {
-                        name: (displayName + " (PM)"),
+                        name: (displayName + " (PM via email)"),
                         visibility: "private",
+                        creation_content: {
+                            "m.federate": true
+                        },
+                        // preset: "trusted_private_chat",
                         is_direct: true,
+                        invite: [matrixId],
                         initial_state: [{
                             content: {
                                 users: {
-                                    [matrixId]: 100,
+                                    [matrixId]: 10,
                                     [fromId]: 100,
                                 },
                                 events: {
@@ -170,13 +180,12 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
                             },
                             type: "m.room.power_levels",
                             state_key: "",
-                        }]
+                        }],
                     }
                 })).room_id;
-                await intent.invite(roomID, matrixId);
             }
             catch (ex) {
-                throw Error(`Could not create a new DM with ${fromAdd.address} & ${matrixId}`);
+                throw Error(`Could not create a new DM with ${fromAdd.address} & ${matrixId}: ${ex}`);
             }
             try {
                 // Store the mappings to the bot's account data.
@@ -189,6 +198,7 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
                 });
             }
             catch (ex) {
+                // (Leave the created room -> inform the sender?)
                 throw Error("Could not store update the DM mappings");
             }
         }
