@@ -112,20 +112,16 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
     const fromId = `@_email_${fromAdd.local }_${fromAdd.domain}:${config.bridge.domain}`;
     const intent = bridge.getIntent(fromId);
     const displayName = from.value[0].name !== "" ? `${from.value[0].name}` : `${fromAdd.address}`;
+    await intent.setDisplayName(displayName);
     let message = Buffer.from(text, "utf-8");
 
     if (alias) {
         // Destination is a public room.
-        // Full name + (email) in public Room
-        await intent.setDisplayName(`${displayName} (email)`);
         roomID = await intent.resolveRoom(alias);
     }
     else {
-        // Full name in DM
-        await intent.setDisplayName(`${displayName}`);
         let dmMappings;
-        const ASBotIntent = bridge.getIntent();
-        const client = ASBotIntent.getClient();
+        const client = bridge.getIntent().getClient();
         const botClient = jsSdk.createClient({
             baseUrl: client.baseUrl,
             accessToken: client._http.opts.accessToken,
@@ -193,7 +189,7 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
                     ...dmMappings,
                     [matrixId]: {
                         "roomId": roomID,
-                        "emailUser": fromAdd.address,
+                        "emailUser": fromId,
                     }
                 });
             }
