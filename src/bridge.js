@@ -19,19 +19,29 @@ exports.bridge = async function(port, config, registration) {
             onEvent: function(request, context) {
                 // events from matrix
                 const event = request.getData();
-                console.log(event);
                 if (event.type === "m.room.member" && event.state_key) {
                     // Check DM leave
                     if (event.content.membership === "leave") {
-                        checkMappingsAndLeaveDM(event.state_key, event.room_id);
+                        checkMappingsAndLeaveDM(event.state_key, event.room_id)
+                            .then(() => {
+                                log.info(`Removed the mapping`);
+                            })
+                            .catch(ex => {
+                                log.error(`Could not remove the mapping: ${ex}`);
+                            });
                     }
                 }
                 if (event.type !== "m.room.message" || !event.content) {
                     return;
                 }
-                log.info(`Matrix-side: ${event.sender}:
-                RoomID: ${event.room_id}, EventID: ${event.event_id}`);
-                sendMessageViaEmail(event.room_id, event);
+                log.info(`Matrix-side: ${event.sender}: RoomID: ${event.room_id}, EventID: ${event.event_id}`);
+                sendMessageViaEmail(event.room_id, event)
+                    .then(() => {
+                        log.info(`Mail sent`);
+                    })
+                    .catch(ex => {
+                        log.error(`sendMessageViaEmail failed, ${ex}`);
+                    });
             }
         }
     });
@@ -59,7 +69,7 @@ exports.bridge = async function(port, config, registration) {
             dmMappings = await botClient.getAccountDataFromServer("me.abhy.email-bridge");
         }
         catch (ex) {
-            log.error(`Could not fetch the DM Mappings from account data: ${ex}`);
+            throw Error(`Could not fetch the DM Mappings from account data: ${ex}`);
         }
         // Check if the user ID is in DM mappings.
         if (event.user_id in dmMappings) {
@@ -73,7 +83,7 @@ exports.bridge = async function(port, config, registration) {
                     to: getMailIdFromUserId(dmMappings[event.user_id].emailUser),
                     subject: `You have a message from ${event.sender}`,
                     html: `${event.content.body}`,
-                }).then( () => {
+                }).then(() => {
                     log.info(`Message sent from ${roomEmail} to ${roomEmail}`);
                 }).catch(ex => {
                     throw Error(`Could not sent email from ${roomEmail} to ${roomEmail}: ${ex}`);
@@ -113,7 +123,7 @@ exports.bridge = async function(port, config, registration) {
                     to: emailIdOfMember,
                     subject: `You have a message from ${roomAlias.alias}`,
                     html: `${event.content.body}`,
-                }).then( _ => {
+                }).then(() => {
                     log.info(`Message sent from ${roomEmail} to ${roomEmail}`);
                 }).catch(ex => {
                     log.error(`Could not sent email from ${roomEmail} to ${roomEmail}: ${ex}`);

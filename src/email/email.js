@@ -90,7 +90,6 @@ async function handleMail(text, toAdd, fromAdd, from, config) {
         }
         else if (receivedAddress[0] === "user") {
             matrixId = `@${receivedAddress[1]}:${receivedAddress[2]}`;
-            log.info(matrixId);
         }
     }
     catch (ex) {
