@@ -19,7 +19,8 @@ exports.bridge = async function(port, config, registration) {
             onEvent: function(request, context) {
                 // events from matrix
                 const event = request.getData();
-                if (event.type === "m.room.member") {
+                console.log(event);
+                if (event.type === "m.room.member" && event.state_key) {
                     // Check DM leave
                     if (event.content.membership === "leave") {
                         checkMappingsAndLeaveDM(event.sender, event.room_id);
